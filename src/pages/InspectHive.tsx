@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { AppLayout } from '@/components/AppLayout';
 import { VoiceRecorder } from '@/components/VoiceRecorder';
-import { mockHives } from '@/lib/data';
+import { useAppStore } from '@/lib/store';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -10,7 +10,8 @@ const InspectHive = () => {
   const { hiveId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const hive = mockHives.find(h => h.id === hiveId);
+  const { hives } = useAppStore();
+  const hive = hives.find(h => h.id === hiveId);
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!hive) {
@@ -23,7 +24,6 @@ const InspectHive = () => {
 
   const handleRecordingComplete = async (_audioBlob: Blob) => {
     setIsProcessing(true);
-    // Simulate AI processing delay
     setTimeout(() => {
       setIsProcessing(false);
       toast({
@@ -37,16 +37,12 @@ const InspectHive = () => {
   return (
     <AppLayout title={`Inspect ${hive.name}`} showBack>
       <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in">
-        {/* Hive context */}
         <div className="mb-10 text-center">
           <p className="text-sm text-muted-foreground mb-1">{hive.apiary}</p>
           <h2 className="font-serif text-2xl font-bold text-foreground">{hive.name}</h2>
           <p className="text-sm text-muted-foreground mt-1">{hive.frameCount} frames</p>
         </div>
-
         <VoiceRecorder onRecordingComplete={handleRecordingComplete} isProcessing={isProcessing} />
-
-        {/* Tips */}
         <div className="mt-12 bg-card rounded-xl p-5 shadow-card w-full max-w-sm">
           <h4 className="font-serif font-semibold text-foreground mb-2">💡 Inspection tips</h4>
           <ul className="space-y-1.5 text-sm text-muted-foreground">
