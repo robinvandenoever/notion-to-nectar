@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Mic, Square, Loader2 } from 'lucide-react';
+import { Mic, Square, Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface VoiceRecorderProps {
@@ -13,6 +13,7 @@ export function VoiceRecorder({ onRecordingComplete, isProcessing }: VoiceRecord
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const startRecording = useCallback(async () => {
     try {
@@ -45,6 +46,15 @@ export function VoiceRecorder({ onRecordingComplete, isProcessing }: VoiceRecord
     setIsRecording(false);
     clearInterval(timerRef.current);
   }, []);
+
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onRecordingComplete(file);
+    }
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+  }, [onRecordingComplete]);
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
@@ -85,6 +95,29 @@ export function VoiceRecorder({ onRecordingComplete, isProcessing }: VoiceRecord
         <div className="text-center">
           <p className="font-serif text-lg text-foreground">Tap to start recording</p>
           <p className="text-sm text-muted-foreground mt-1">Narrate your inspection naturally</p>
+          
+          <div className="mt-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".m4a,audio/mp4,audio/x-m4a,audio/mpeg,.mp3"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3 gap-2"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="w-4 h-4" />
+            Upload audio file
+          </Button>
         </div>
       )}
 

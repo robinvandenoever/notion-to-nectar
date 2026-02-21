@@ -10,6 +10,7 @@ export function FrameDataTable({ frames }: { frames: FrameData[] }) {
             <th className="text-right py-3 px-3 font-semibold text-honey-dark">🍯 Honey</th>
             <th className="text-right py-3 px-3 font-semibold text-amber">🐝 Brood</th>
             <th className="text-right py-3 px-3 font-semibold text-forest">🌻 Pollen</th>
+            <th className="text-right py-3 px-3 font-semibold text-muted-foreground">⬜ Empty</th>
             <th className="text-center py-3 px-3 font-semibold text-foreground">Eggs</th>
             <th className="text-center py-3 px-3 font-semibold text-foreground">Larvae</th>
             <th className="text-center py-3 px-3 font-semibold text-foreground">Drone</th>
@@ -36,6 +37,12 @@ export function FrameDataTable({ frames }: { frames: FrameData[] }) {
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2 rounded-full bg-forest" style={{ width: `${frame.pollenPercent * 0.4}px` }} />
                   {frame.pollenPercent}%
+                </span>
+              </td>
+              <td className="text-right py-2.5 px-3">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 rounded-full bg-muted-foreground/30" style={{ width: `${frame.emptyPercent * 0.4}px` }} />
+                  {frame.emptyPercent}%
                 </span>
               </td>
               <td className="text-center py-2.5 px-3">{frame.eggsPresent ? '✓' : '—'}</td>

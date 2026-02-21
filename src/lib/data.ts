@@ -13,6 +13,7 @@ export interface FrameData {
   honeyPercent: number;
   broodPercent: number;
   pollenPercent: number;
+  emptyPercent: number;
   eggsPresent: boolean;
   larvaePresent: boolean;
   droneBrood: boolean;
@@ -50,11 +51,11 @@ export const mockInspections: Inspection[] = [
     date: '2026-02-18',
     rawTranscript: 'Frame 1 is mostly honey, about 80%. Frame 2 has good brood pattern, 60% brood, 20% honey, some pollen. I can see eggs. Frame 3 is heavy with honey...',
     frames: [
-      { frameNumber: 1, honeyPercent: 80, broodPercent: 5, pollenPercent: 10, eggsPresent: false, larvaePresent: false, droneBrood: false, queenCells: false },
-      { frameNumber: 2, honeyPercent: 20, broodPercent: 60, pollenPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: false, queenCells: false },
-      { frameNumber: 3, honeyPercent: 90, broodPercent: 0, pollenPercent: 5, eggsPresent: false, larvaePresent: false, droneBrood: false, queenCells: false },
-      { frameNumber: 4, honeyPercent: 15, broodPercent: 65, pollenPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: true, queenCells: false },
-      { frameNumber: 5, honeyPercent: 10, broodPercent: 70, pollenPercent: 15, eggsPresent: true, larvaePresent: true, droneBrood: false, queenCells: false },
+      { frameNumber: 1, honeyPercent: 80, broodPercent: 5, pollenPercent: 10, emptyPercent: 5, eggsPresent: false, larvaePresent: false, droneBrood: false, queenCells: false },
+      { frameNumber: 2, honeyPercent: 20, broodPercent: 60, pollenPercent: 10, emptyPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: false, queenCells: false },
+      { frameNumber: 3, honeyPercent: 90, broodPercent: 0, pollenPercent: 5, emptyPercent: 5, eggsPresent: false, larvaePresent: false, droneBrood: false, queenCells: false },
+      { frameNumber: 4, honeyPercent: 15, broodPercent: 65, pollenPercent: 10, emptyPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: true, queenCells: false },
+      { frameNumber: 5, honeyPercent: 10, broodPercent: 70, pollenPercent: 15, emptyPercent: 5, eggsPresent: true, larvaePresent: true, droneBrood: false, queenCells: false },
     ],
     queenSeen: true,
     broodPattern: 'Solid, consistent pattern',
@@ -70,9 +71,9 @@ export const mockInspections: Inspection[] = [
     hiveId: '1',
     date: '2026-02-04',
     frames: [
-      { frameNumber: 1, honeyPercent: 70, broodPercent: 10, pollenPercent: 15, eggsPresent: false, larvaePresent: true, droneBrood: false, queenCells: false },
-      { frameNumber: 2, honeyPercent: 25, broodPercent: 50, pollenPercent: 15, eggsPresent: true, larvaePresent: true, droneBrood: false, queenCells: false },
-      { frameNumber: 3, honeyPercent: 85, broodPercent: 0, pollenPercent: 10, eggsPresent: false, larvaePresent: false, droneBrood: false, queenCells: false },
+      { frameNumber: 1, honeyPercent: 70, broodPercent: 10, pollenPercent: 15, emptyPercent: 5, eggsPresent: false, larvaePresent: true, droneBrood: false, queenCells: false },
+      { frameNumber: 2, honeyPercent: 25, broodPercent: 50, pollenPercent: 15, emptyPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: false, queenCells: false },
+      { frameNumber: 3, honeyPercent: 85, broodPercent: 0, pollenPercent: 10, emptyPercent: 5, eggsPresent: false, larvaePresent: false, droneBrood: false, queenCells: false },
     ],
     queenSeen: true,
     broodPattern: 'Good pattern',
@@ -88,8 +89,8 @@ export const mockInspections: Inspection[] = [
     hiveId: '2',
     date: '2026-02-15',
     frames: [
-      { frameNumber: 1, honeyPercent: 50, broodPercent: 30, pollenPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: false, queenCells: true },
-      { frameNumber: 2, honeyPercent: 40, broodPercent: 40, pollenPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: true, queenCells: false },
+      { frameNumber: 1, honeyPercent: 50, broodPercent: 30, pollenPercent: 10, emptyPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: false, queenCells: true },
+      { frameNumber: 2, honeyPercent: 40, broodPercent: 40, pollenPercent: 10, emptyPercent: 10, eggsPresent: true, larvaePresent: true, droneBrood: true, queenCells: false },
     ],
     queenSeen: false,
     broodPattern: 'Spotty',
