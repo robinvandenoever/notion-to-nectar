@@ -1,16 +1,27 @@
-import { useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/AppLayout';
 import { InspectionSummaryCards } from '@/components/InspectionSummaryCards';
 import { FrameDataTable } from '@/components/FrameDataTable';
-import { mockInspections, mockHives } from '@/lib/data';
+import { useAppStore } from '@/lib/store';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, CheckCircle2, MessageSquare } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { AlertTriangle, CheckCircle2, MessageSquare, Trash2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const InspectionReport = () => {
   const { id } = useParams();
-  const inspection = mockInspections.find(i => i.id === id);
-  const hive = inspection ? mockHives.find(h => h.id === inspection.hiveId) : null;
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { hives, inspections, deleteInspection } = useAppStore();
+  const inspection = inspections.find(i => i.id === id);
+  const hive = inspection ? hives.find(h => h.id === inspection.hiveId) : null;
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   if (!inspection || !hive) {
     return (
@@ -24,8 +35,22 @@ const InspectionReport = () => {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
 
+  const handleDelete = () => {
+    deleteInspection(inspection.id);
+    toast({ title: 'Inspection deleted', description: 'The inspection report has been removed.' });
+    navigate(`/hive/${hive.id}`);
+  };
+
   return (
-    <AppLayout title="Inspection Report" showBack>
+    <AppLayout
+      title="Inspection Report"
+      showBack
+      action={
+        <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
+          <Trash2 className="w-3.5 h-3.5" /> Delete
+        </Button>
+      }
+    >
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
         <div>
@@ -121,6 +146,24 @@ const InspectionReport = () => {
           </Card>
         )}
       </div>
+
+      {/* Delete confirm */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">Delete Inspection?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this inspection report from {hive.name}. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };
