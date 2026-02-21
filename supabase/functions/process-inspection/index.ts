@@ -28,11 +28,15 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Convert audio to base64 for Gemini multimodal
+    // Convert audio to base64 for Gemini multimodal (chunked to avoid stack overflow)
     const arrayBuffer = await audioFile.arrayBuffer();
-    const base64Audio = btoa(
-      String.fromCharCode(...new Uint8Array(arrayBuffer))
-    );
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    const base64Audio = btoa(binary);
 
     // Determine MIME type
     const mimeType = audioFile.type || "audio/webm";
