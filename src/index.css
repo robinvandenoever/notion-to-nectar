@@ -2,95 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 40 33% 97%;
+    --foreground: 30 20% 12%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 40 30% 95%;
+    --card-foreground: 30 20% 12%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 40 33% 97%;
+    --popover-foreground: 30 20% 12%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 36 85% 48%;
+    --primary-foreground: 40 33% 97%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 35 30% 88%;
+    --secondary-foreground: 30 20% 18%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 38 20% 92%;
+    --muted-foreground: 30 12% 48%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 25 75% 52%;
+    --accent-foreground: 40 33% 97%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 40 33% 97%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 35 22% 86%;
+    --input: 35 22% 86%;
+    --ring: 36 85% 48%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    --honey: 36 85% 48%;
+    --honey-light: 42 80% 65%;
+    --honey-dark: 30 80% 35%;
+    --amber: 25 75% 52%;
+    --comb: 43 50% 90%;
+    --earth: 30 20% 22%;
+    --forest: 140 25% 32%;
+    --forest-light: 140 20% 45%;
+    --success: 140 50% 40%;
+    --success-foreground: 40 33% 97%;
+    --warning: 36 85% 48%;
+    --warning-foreground: 30 20% 12%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-background: 38 25% 94%;
+    --sidebar-foreground: 30 20% 18%;
+    --sidebar-primary: 36 85% 48%;
+    --sidebar-primary-foreground: 40 33% 97%;
+    --sidebar-accent: 35 30% 88%;
+    --sidebar-accent-foreground: 30 20% 18%;
+    --sidebar-border: 35 22% 86%;
+    --sidebar-ring: 36 85% 48%;
 
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --gradient-honey: linear-gradient(135deg, hsl(42, 80%, 65%), hsl(36, 85%, 48%), hsl(25, 75%, 52%));
+    --gradient-warm: linear-gradient(135deg, hsl(40, 33%, 97%), hsl(43, 50%, 90%));
+    --shadow-honey: 0 4px 20px -4px hsla(36, 85%, 48%, 0.25);
+    --shadow-card: 0 2px 12px -2px hsla(30, 20%, 12%, 0.08);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 30 20% 8%;
+    --foreground: 40 20% 92%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 30 18% 12%;
+    --card-foreground: 40 20% 92%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 30 18% 12%;
+    --popover-foreground: 40 20% 92%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 36 85% 52%;
+    --primary-foreground: 30 20% 8%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 30 15% 18%;
+    --secondary-foreground: 40 20% 88%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 30 12% 16%;
+    --muted-foreground: 35 12% 55%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 25 75% 55%;
+    --accent-foreground: 30 20% 8%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 40 20% 92%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 30 12% 20%;
+    --input: 30 12% 20%;
+    --ring: 36 85% 52%;
+
+    --honey: 36 85% 52%;
+    --honey-light: 42 70% 55%;
+    --honey-dark: 30 80% 40%;
+    --comb: 30 15% 16%;
+    --earth: 30 20% 80%;
+    --forest: 140 25% 45%;
+    --forest-light: 140 20% 55%;
+
+    --sidebar-background: 30 18% 10%;
+    --sidebar-foreground: 40 20% 88%;
+    --sidebar-primary: 36 85% 52%;
+    --sidebar-primary-foreground: 30 20% 8%;
+    --sidebar-accent: 30 15% 18%;
+    --sidebar-accent-foreground: 40 20% 88%;
+    --sidebar-border: 30 12% 20%;
+    --sidebar-ring: 36 85% 52%;
   }
 }
 
@@ -101,5 +119,43 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Fraunces', serif;
+  }
+}
+
+@layer utilities {
+  .gradient-honey {
+    background: var(--gradient-honey);
+  }
+  .gradient-warm {
+    background: var(--gradient-warm);
+  }
+  .shadow-honey {
+    box-shadow: var(--shadow-honey);
+  }
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  .text-honey {
+    color: hsl(var(--honey));
+  }
+  .bg-honey {
+    background-color: hsl(var(--honey));
+  }
+  .bg-comb {
+    background-color: hsl(var(--comb));
+  }
+  .text-forest {
+    color: hsl(var(--forest));
+  }
+  .bg-forest {
+    background-color: hsl(var(--forest));
+  }
+  .text-earth {
+    color: hsl(var(--earth));
   }
 }
