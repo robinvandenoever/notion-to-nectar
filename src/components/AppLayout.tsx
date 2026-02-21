@@ -22,7 +22,7 @@ export function AppLayout({ children, title, showBack, action }: AppLayoutProps)
         <div className="container max-w-2xl mx-auto flex items-center justify-between h-14 px-4">
           <div className="flex items-center gap-3">
             {showBack && (
-              <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="text-foreground">
+              <Button variant="ghost" size="icon" onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')} className="text-foreground">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             )}
