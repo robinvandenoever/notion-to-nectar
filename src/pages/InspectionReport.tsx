@@ -1,171 +1,127 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { AppLayout } from '@/components/AppLayout';
-import { InspectionSummaryCards } from '@/components/InspectionSummaryCards';
-import { FrameDataTable } from '@/components/FrameDataTable';
-import { useAppStore } from '@/lib/store';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { AlertTriangle, CheckCircle2, MessageSquare, Trash2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useLocation, useNavigate } from "react-router-dom";
 
-const InspectionReport = () => {
-  const { id } = useParams();
+import { AppLayout } from "@/components/AppLayout";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+
+import { FrameDataTable, type FrameReport, combineFrameSides } from "@/components/FrameDataTable";
+
+type ExtractResponse = {
+  frames?: FrameReport[];
+  totals?: any; // we will ignore for now (UI will compute totals)
+  questions?: string[];
+  queen?: {
+    mentioned: boolean;
+    eoq?: boolean;
+    status_note?: string;
+  };
+};
+
+type ReportState = {
+  hiveName: string;
+  apiaryName: string;
+  transcriptText: string;
+  extract: ExtractResponse;
+};
+
+function sumPct(frames: ReturnType<typeof combineFrameSides>, key: "honey_pct" | "brood_pct" | "pollen_pct") {
+  return frames.reduce((acc, f) => acc + (typeof f[key] === "number" ? f[key]! : 0), 0);
+}
+
+function InspectionReport() {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { hives, inspections, deleteInspection } = useAppStore();
-  const inspection = inspections.find(i => i.id === id);
-  const hive = inspection ? hives.find(h => h.id === inspection.hiveId) : null;
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const location = useLocation();
 
-  if (!inspection || !hive) {
+  const state = location.state as ReportState | null;
+
+  if (!state?.extract) {
     return (
-      <AppLayout title="Not Found" showBack>
-        <p className="text-muted-foreground">Inspection not found.</p>
+      <AppLayout title="Inspection Report" showBack>
+        <p className="text-muted-foreground">No inspection data found. Run an inspection first.</p>
+        <div className="mt-4">
+          <Button variant="outline" onClick={() => navigate("/")}>Back to apiaries</Button>
+        </div>
       </AppLayout>
     );
   }
 
-  const dateStr = new Date(inspection.date).toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  });
+  const { hiveName, apiaryName, transcriptText, extract } = state;
 
-  const handleDelete = () => {
-    deleteInspection(inspection.id);
-    toast({ title: 'Inspection deleted', description: 'The inspection report has been removed.' });
-    navigate(`/hive/${hive.id}`);
-  };
+  const rawFrames = extract.frames ?? [];
+  const combined = combineFrameSides(rawFrames);
+
+  const honeyEquiv = sumPct(combined, "honey_pct") / 100;
+  const broodEquiv = sumPct(combined, "brood_pct") / 100;
+  const pollenEquiv = sumPct(combined, "pollen_pct") / 100;
 
   return (
-    <AppLayout
-      title="Inspection Report"
-      showBack
-      action={
-        <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
-          <Trash2 className="w-3.5 h-3.5" /> Delete
-        </Button>
-      }
-    >
+    <AppLayout title="Inspection Report" showBack>
       <div className="space-y-6 animate-fade-in">
-        {/* Header */}
-        <div>
-          <p className="text-sm text-muted-foreground">{hive.name} · {hive.apiary}</p>
-          <h2 className="font-serif text-2xl font-bold text-foreground">{dateStr}</h2>
+        <div className="text-center">
+          <p className="text-sm text-muted-foreground mb-1">{apiaryName}</p>
+          <h2 className="font-serif text-2xl font-bold text-foreground">{hiveName}</h2>
+
+          <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
+            <Badge variant="secondary">{combined.length} frames</Badge>
+            {extract.queen?.mentioned ? (
+              <Badge variant="secondary">Queen mentioned</Badge>
+            ) : (
+              <Badge variant="secondary">Queen not mentioned</Badge>
+            )}
+          </div>
         </div>
 
-        {/* Summary */}
-        <InspectionSummaryCards inspection={inspection} />
+        {/* Totals computed from the table data */}
+        <div className="grid grid-cols-3 gap-3">
+          <Card className="p-4 text-center shadow-card">
+            <p className="text-2xl font-serif font-bold text-foreground">{honeyEquiv.toFixed(1)}</p>
+            <p className="text-xs text-muted-foreground">Honey equiv frames</p>
+          </Card>
 
-        {/* Hive-level observations */}
-        <Card className="border-border/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-serif text-lg">Hive Observations</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-2">
-              {inspection.queenSeen ? (
-                <CheckCircle2 className="w-4 h-4 text-success" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 text-accent" />
-              )}
-              <span className="text-sm text-foreground">
-                Queen {inspection.queenSeen ? 'seen (EOQ confirmed)' : 'not seen'}
-              </span>
+          <Card className="p-4 text-center shadow-card">
+            <p className="text-2xl font-serif font-bold text-foreground">{broodEquiv.toFixed(1)}</p>
+            <p className="text-xs text-muted-foreground">Brood equiv frames</p>
+          </Card>
+
+          <Card className="p-4 text-center shadow-card">
+            <p className="text-2xl font-serif font-bold text-foreground">{pollenEquiv.toFixed(1)}</p>
+            <p className="text-xs text-muted-foreground">Pollen equiv frames</p>
+          </Card>
+        </div>
+
+        {extract.questions?.length ? (
+          <Card className="p-4 shadow-card">
+            <h3 className="font-serif font-semibold text-foreground mb-2">Follow-ups</h3>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              {extract.questions.map((q, i) => (
+                <div key={i}>• {q}</div>
+              ))}
             </div>
-            {inspection.broodPattern && (
-              <p className="text-sm text-muted-foreground">
-                <span className="text-foreground font-medium">Brood pattern:</span> {inspection.broodPattern}
-              </p>
-            )}
-            {inspection.temperament && (
-              <p className="text-sm text-muted-foreground">
-                <span className="text-foreground font-medium">Temperament:</span> {inspection.temperament}
-              </p>
-            )}
-            {inspection.healthFlags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {inspection.healthFlags.map(flag => (
-                  <Badge key={flag} variant="destructive" className="text-xs gap-1">
-                    <AlertTriangle className="w-3 h-3" />
-                    {flag}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </CardContent>
+          </Card>
+        ) : null}
+
+        <div>
+          <h3 className="font-serif text-lg font-semibold text-foreground mb-3">Frame-by-frame</h3>
+          <FrameDataTable frames={rawFrames} />
+        </div>
+
+        <Card className="p-4 shadow-card">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-serif font-semibold text-foreground">Transcript</h3>
+            <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(transcriptText)}>
+              Copy
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 whitespace-pre-wrap">{transcriptText}</p>
         </Card>
 
-        {/* Frame data */}
-        <Card className="border-border/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-serif text-lg">Frame-by-Frame Data</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FrameDataTable frames={inspection.frames} />
-          </CardContent>
-        </Card>
-
-        {/* Follow-up questions */}
-        {inspection.followUpQuestions.length > 0 && (
-          <Card className="border-accent/30 bg-accent/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="font-serif text-lg flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-accent" />
-                Follow-up Questions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {inspection.followUpQuestions.map((q, i) => (
-                  <li key={i} className="text-sm text-foreground flex items-start gap-2">
-                    <span className="text-accent mt-0.5">•</span>
-                    {q}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Raw transcript */}
-        {inspection.rawTranscript && (
-          <Card className="border-border/60">
-            <CardHeader className="pb-3">
-              <CardTitle className="font-serif text-lg">Raw Transcript</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground italic leading-relaxed">
-                "{inspection.rawTranscript}"
-              </p>
-            </CardContent>
-          </Card>
-        )}
+        <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
+          Back to apiaries
+        </Button>
       </div>
-
-      {/* Delete confirm */}
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif">Delete Inspection?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove this inspection report from {hive.name}. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </AppLayout>
   );
-};
+}
 
 export default InspectionReport;

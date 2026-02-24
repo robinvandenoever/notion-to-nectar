@@ -1,176 +1,123 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { AppLayout } from '@/components/AppLayout';
-import { InspectionTimeline } from '@/components/InspectionTimeline';
-import { useAppStore } from '@/lib/store';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
-} from '@/components/ui/dialog';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Mic, Pencil, Trash2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+
+import { AppLayout } from "@/components/AppLayout";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+
+import { getHives, type Hive } from "@/lib/api";
 
 const HiveDetail = () => {
-  const { id } = useParams();
+  const params = useParams();
+  // Support either route style: /hive/:hiveId OR /hive/:id
+  const hiveId = (params.hiveId ?? params.id) as string | undefined;
+
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { hives, inspections, updateHive, deleteHive } = useAppStore();
-  const hive = hives.find(h => h.id === id);
-  const hiveInspections = inspections
-    .filter(i => i.hiveId === id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [hives, setHives] = useState<Hive[]>([]);
 
-  // Edit form state
-  const [editName, setEditName] = useState('');
-  const [editApiary, setEditApiary] = useState('');
-  const [editFrames, setEditFrames] = useState('10');
-  const [editNotes, setEditNotes] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await getHives();
+        if (!cancelled) setHives(data);
+      } catch (err: any) {
+        console.error(err);
+        toast({
+          title: "Failed to load hive",
+          description: err?.message || "Could not fetch hives from the API.",
+          variant: "destructive",
+        });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
+
+  const hive = useMemo(() => {
+    if (!hiveId) return undefined;
+    return hives.find((h) => h.id === hiveId);
+  }, [hives, hiveId]);
+
+  if (!hiveId) {
+    return (
+      <AppLayout title="Hive Not Found" showBack>
+        <p className="text-muted-foreground">
+          Missing hive id in the URL. (Your route param name likely differs.)
+        </p>
+        <div className="mt-4">
+          <Button variant="outline" onClick={() => navigate("/")}>
+            Back to apiaries
+          </Button>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (loading) {
+    return (
+      <AppLayout title="Hive" showBack>
+        <p className="text-muted-foreground">Loading…</p>
+      </AppLayout>
+    );
+  }
 
   if (!hive) {
     return (
       <AppLayout title="Hive Not Found" showBack>
         <p className="text-muted-foreground">This hive doesn't exist.</p>
+        <p className="text-xs text-muted-foreground mt-2">
+          (Hive id: <span className="text-foreground">{hiveId}</span>)
+        </p>
+        <div className="mt-4">
+          <Button variant="outline" onClick={() => navigate("/")}>
+            Back to apiaries
+          </Button>
+        </div>
       </AppLayout>
     );
   }
 
-  const openEdit = () => {
-    setEditName(hive.name);
-    setEditApiary(hive.apiary);
-    setEditFrames(String(hive.frameCount));
-    setEditNotes(hive.notes || '');
-    setEditOpen(true);
-  };
-
-  const handleEdit = () => {
-    updateHive(hive.id, {
-      name: editName.trim(),
-      apiary: editApiary.trim(),
-      frameCount: Number(editFrames),
-      notes: editNotes.trim() || undefined,
-    });
-    toast({ title: 'Hive updated', description: `${editName.trim()} has been saved.` });
-    setEditOpen(false);
-  };
-
-  const handleDelete = () => {
-    deleteHive(hive.id);
-    toast({ title: 'Hive deleted', description: `${hive.name} has been removed.` });
-    navigate('/');
-  };
-
   return (
-    <AppLayout
-      title={hive.name}
-      showBack
-      action={
-        <Button
-          onClick={() => navigate(`/inspect/${hive.id}`)}
-          className="gradient-honey text-primary-foreground shadow-honey gap-2"
-          size="sm"
-        >
-          <Mic className="w-4 h-4" />
-          New Inspection
-        </Button>
-      }
-    >
-      <div className="animate-fade-in">
-        {/* Hive info */}
-        <div className="bg-card rounded-xl p-5 shadow-card mb-6">
-          <div className="flex items-center justify-between mb-3">
+    <AppLayout title={hive.name} showBack>
+      <div className="space-y-4 animate-fade-in">
+        <Card className="p-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm text-muted-foreground">{hive.apiary}</p>
-              <h2 className="font-serif text-2xl font-bold text-foreground">{hive.name}</h2>
+              <p className="text-sm text-muted-foreground">Apiary</p>
+              <p className="font-serif text-xl font-bold text-foreground">
+                {hive.apiary_name ?? "Unknown apiary"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Created: {new Date(hive.created_at).toLocaleString()}
+              </p>
             </div>
-            <Badge variant="secondary">{hive.frameCount} frames</Badge>
+            <Badge variant="secondary">API-backed</Badge>
           </div>
-          {hive.notes && <p className="text-sm text-accent italic mb-3">{hive.notes}</p>}
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={openEdit}>
-              <Pencil className="w-3.5 h-3.5" /> Edit
-            </Button>
-            <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="w-3.5 h-3.5" /> Delete
-            </Button>
-          </div>
-        </div>
+        </Card>
 
-        {/* Inspection history */}
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-serif text-lg font-semibold text-foreground">Inspection History</h3>
-          <span className="text-sm text-muted-foreground">{hiveInspections.length} records</span>
-        </div>
+        <Button
+          className="w-full gradient-honey text-primary-foreground shadow-honey"
+          onClick={() => navigate(`/inspect/${hive.id}`)}
+        >
+          Start inspection
+        </Button>
 
-        <InspectionTimeline inspections={hiveInspections} />
+        <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
+          Back to apiaries
+        </Button>
       </div>
-
-      {/* Edit dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-serif">Edit Hive</DialogTitle>
-            <DialogDescription>Update details for {hive.name}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Hive Name</Label>
-              <Input value={editName} onChange={e => setEditName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Apiary</Label>
-              <Input value={editApiary} onChange={e => setEditApiary(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Frame Count</Label>
-              <Select value={editFrames} onValueChange={setEditFrames}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {[6, 8, 10, 12, 14, 16, 20].map(n => (
-                    <SelectItem key={n} value={String(n)}>{n} frames</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Input value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Optional notes..." />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleEdit} className="gradient-honey text-primary-foreground">Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete confirm */}
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="font-serif">Delete {hive.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove this hive and all {hiveInspections.length} inspection(s). This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </AppLayout>
   );
 };

@@ -1,104 +1,196 @@
-import { useParams } from 'react-router-dom';
-import { AppLayout } from '@/components/AppLayout';
-import { VoiceRecorder } from '@/components/VoiceRecorder';
-import { useAppStore } from '@/lib/store';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+
+import { AppLayout } from "@/components/AppLayout";
+import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { useAppStore } from "@/lib/store";
+import { useToast } from "@/hooks/use-toast";
+
+type UiHive = {
+  id: string;
+  name: string;
+  apiary: string;
+  frameCount: number;
+};
+
+type ExtractResponse = {
+  frames: any[];
+  totals: {
+    frames_reported: number;
+    honey_equiv_frames: number;
+    brood_equiv_frames: number;
+    pollen_equiv_frames: number;
+  };
+  questions: string[];
+};
+
+type LocationState = {
+  hive?: UiHive;
+};
 
 const InspectHive = () => {
-  const { hiveId } = useParams();
+  const params = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const { hives, addInspection } = useAppStore();
-  const hive = hives.find(h => h.id === hiveId);
-  const [isProcessing, setIsProcessing] = useState(false);
 
-  if (!hive) {
-    return (
-      <AppLayout title="Hive Not Found" showBack>
-        <p className="text-muted-foreground">This hive doesn't exist.</p>
-      </AppLayout>
-    );
-  }
+  const { hives } = useAppStore();
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+
+  // Support multiple route param names: /inspect/:hiveId or /inspect/:id
+  const hiveId = (params.hiveId || params.id || "") as string;
+
+  const hiveFromStore = useMemo(() => hives.find((h) => h.id === hiveId), [hives, hiveId]);
+  const hiveFromState = (location.state as LocationState | null)?.hive;
+
+  const [hive, setHive] = useState<UiHive | null>(hiveFromStore || hiveFromState || null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoadingHive, setIsLoadingHive] = useState(false);
+
+  // If hive isn't in the store/state, fetch from API
+  useEffect(() => {
+    const run = async () => {
+      if (hive) return;
+      if (!API_BASE) return;
+
+      setIsLoadingHive(true);
+      try {
+        const resp = await fetch(`${API_BASE}/hives`);
+        if (!resp.ok) throw new Error(`Failed to load hives (${resp.status})`);
+        const data = (await resp.json()) as { hives: Array<{ id: string; name: string; apiary_name: string | null }> };
+
+        const found = data.hives.find((x) => x.id === hiveId);
+        if (!found) {
+          setHive(null);
+          return;
+        }
+
+        // Map backend -> UI hive shape
+        setHive({
+          id: found.id,
+          name: found.name,
+          apiary: found.apiary_name ?? "Apiary",
+          frameCount: 10, // MVP default; we can store this in DB later
+        });
+      } catch (e: any) {
+        console.error(e);
+        toast({
+          title: "Could not load hive",
+          description: e?.message || "Failed fetching hive data from API.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingHive(false);
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [API_BASE, hiveId]);
+
+  useEffect(() => {
+    // Keep in sync if store updates later
+    if (hiveFromStore) setHive(hiveFromStore as any);
+    else if (hiveFromState) setHive(hiveFromState);
+  }, [hiveFromStore, hiveFromState]);
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
-    setIsProcessing(true);
-    try {
-      // 1. Upload audio to storage
-      const fileName = `${hiveId}/${Date.now()}.${audioBlob.type.includes('mp4') || audioBlob.type.includes('m4a') ? 'm4a' : audioBlob.type.includes('mp3') || audioBlob.type.includes('mpeg') ? 'mp3' : 'webm'}`;
-      const { error: uploadError } = await supabase.storage
-        .from('inspection-audio')
-        .upload(fileName, audioBlob);
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error('Failed to upload audio');
-      }
-
-      // 2. Send audio to edge function for AI processing
-      const formData = new FormData();
-      formData.append('audio', audioBlob);
-      formData.append('frameCount', String(hive.frameCount));
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-inspection`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Processing failed (${response.status})`);
-      }
-
-      const inspectionData = await response.json();
-
-      // 3. Save inspection to store
-      const inspection = {
-        id: '', // will be set by store
-        hiveId: hive.id,
-        date: new Date().toISOString().split('T')[0],
-        rawTranscript: inspectionData.rawTranscript,
-        frames: inspectionData.frames || [],
-        queenSeen: inspectionData.queenSeen ?? false,
-        broodPattern: inspectionData.broodPattern,
-        temperament: inspectionData.temperament,
-        healthFlags: inspectionData.healthFlags || [],
-        honeyEquivFrames: inspectionData.honeyEquivFrames || 0,
-        broodEquivFrames: inspectionData.broodEquivFrames || 0,
-        pollenEquivFrames: inspectionData.pollenEquivFrames || 0,
-        followUpQuestions: inspectionData.followUpQuestions || [],
-      };
-
-      addInspection(inspection);
-
+    if (!API_BASE) {
       toast({
-        title: 'Inspection processed',
-        description: 'Your audio has been transcribed and structured into a report.',
+        title: "Missing API URL",
+        description: "VITE_API_BASE_URL is not set.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!hive) {
+      toast({
+        title: "Hive not loaded",
+        description: "Try again once the hive is loaded.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // 1) Transcribe
+      const fd = new FormData();
+      fd.append("file", audioBlob, "inspection.m4a");
+
+      const tResp = await fetch(`${API_BASE}/transcribe`, {
+        method: "POST",
+        body: fd,
       });
 
-      // Navigate to the latest inspection (store assigns the id)
-      const store = useAppStore.getState();
-      const latestInspection = store.inspections[store.inspections.length - 1];
-      navigate(`/inspection/${latestInspection.id}`);
-    } catch (err: any) {
-      console.error('Inspection error:', err);
+      if (!tResp.ok) {
+        const errText = await tResp.text();
+        throw new Error(`Transcription failed: ${tResp.status} ${errText}`);
+      }
+
+      const tJson = (await tResp.json()) as { transcriptText: string };
+      const transcriptText = tJson.transcriptText || "";
+
+      // 2) Extract
+      const eResp = await fetch(`${API_BASE}/extract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcriptText }),
+      });
+
+      if (!eResp.ok) {
+        const errText = await eResp.text();
+        throw new Error(`Extraction failed: ${eResp.status} ${errText}`);
+      }
+
+      const extract = (await eResp.json()) as ExtractResponse;
+
       toast({
-        title: 'Processing failed',
-        description: err.message || 'Could not process the audio. Please try again.',
-        variant: 'destructive',
+        title: "Inspection processed",
+        description: "Audio transcribed and structured into a report.",
+      });
+
+      // 3) Navigate to report page
+      navigate("/inspection-report", {
+        state: {
+          hiveName: hive.name,
+          apiaryName: hive.apiary,
+          transcriptText,
+          extract,
+        },
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Processing failed",
+        description: err?.message || "Could not process the audio.",
+        variant: "destructive",
       });
     } finally {
       setIsProcessing(false);
     }
   };
+
+  if (!hiveId) {
+    return (
+      <AppLayout title="Inspect Hive" showBack>
+        <p className="text-muted-foreground">Missing hive id in URL.</p>
+      </AppLayout>
+    );
+  }
+
+  if (!hive) {
+    return (
+      <AppLayout title="Hive Not Found" showBack>
+        <p className="text-muted-foreground">
+          {isLoadingHive ? "Loading hive..." : "This hive doesn't exist."}
+        </p>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title={`Inspect ${hive.name}`} showBack>
@@ -108,14 +200,24 @@ const InspectHive = () => {
           <h2 className="font-serif text-2xl font-bold text-foreground">{hive.name}</h2>
           <p className="text-sm text-muted-foreground mt-1">{hive.frameCount} frames</p>
         </div>
+
         <VoiceRecorder onRecordingComplete={handleRecordingComplete} isProcessing={isProcessing} />
+
         <div className="mt-12 bg-card rounded-xl p-5 shadow-card w-full max-w-sm">
           <h4 className="font-serif font-semibold text-foreground mb-2">💡 Inspection tips</h4>
           <ul className="space-y-1.5 text-sm text-muted-foreground">
-            <li>• Mention frame numbers: <span className="text-foreground">"Frame 1 is..."</span></li>
-            <li>• State percentages: <span className="text-foreground">"about 60% honey"</span></li>
-            <li>• Note queen status: <span className="text-foreground">"I can see the queen"</span></li>
-            <li>• Mention eggs/larvae: <span className="text-foreground">"eggs visible"</span></li>
+            <li>
+              • Mention frame numbers: <span className="text-foreground">"Frame 1 is..."</span>
+            </li>
+            <li>
+              • State percentages: <span className="text-foreground">"about 60% honey"</span>
+            </li>
+            <li>
+              • Note queen status: <span className="text-foreground">"EOQ" / "queen not seen"</span>
+            </li>
+            <li>
+              • Mention eggs/larvae: <span className="text-foreground">"eggs visible"</span>
+            </li>
           </ul>
         </div>
       </div>
