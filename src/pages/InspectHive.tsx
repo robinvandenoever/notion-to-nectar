@@ -28,6 +28,14 @@ type LocationState = {
   hive?: UiHive;
 };
 
+function filenameForBlob(blob: Blob) {
+  const mime = blob.type || "";
+  if (mime.includes("webm")) return "inspection.webm";
+  if (mime.includes("mpeg") || mime.includes("mp3")) return "inspection.mp3";
+  if (mime.includes("mp4") || mime.includes("m4a")) return "inspection.m4a";
+  return "inspection.audio";
+}
+
 const InspectHive = () => {
   const params = useParams();
   const navigate = useNavigate();
@@ -35,10 +43,8 @@ const InspectHive = () => {
   const { toast } = useToast();
 
   const { hives } = useAppStore();
-
   const API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
-  // Support multiple route param names: /inspect/:hiveId or /inspect/:id
   const hiveId = (params.hiveId || params.id || "") as string;
 
   const hiveFromStore = useMemo(() => hives.find((h) => h.id === hiveId), [hives, hiveId]);
@@ -48,7 +54,6 @@ const InspectHive = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoadingHive, setIsLoadingHive] = useState(false);
 
-  // If hive isn't in the store/state, fetch from API
   useEffect(() => {
     const run = async () => {
       if (hive) return;
@@ -66,12 +71,11 @@ const InspectHive = () => {
           return;
         }
 
-        // Map backend -> UI hive shape
         setHive({
           id: found.id,
           name: found.name,
           apiary: found.apiary_name ?? "Apiary",
-          frameCount: 10, // MVP default; we can store this in DB later
+          frameCount: 10, // MVP default
         });
       } catch (e: any) {
         console.error(e);
@@ -90,36 +94,30 @@ const InspectHive = () => {
   }, [API_BASE, hiveId]);
 
   useEffect(() => {
-    // Keep in sync if store updates later
     if (hiveFromStore) setHive(hiveFromStore as any);
     else if (hiveFromState) setHive(hiveFromState);
   }, [hiveFromStore, hiveFromState]);
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
     if (!API_BASE) {
-      toast({
-        title: "Missing API URL",
-        description: "VITE_API_BASE_URL is not set.",
-        variant: "destructive",
-      });
+      toast({ title: "Missing API URL", description: "VITE_API_BASE_URL is not set.", variant: "destructive" });
       return;
     }
-
     if (!hive) {
-      toast({
-        title: "Hive not loaded",
-        description: "Try again once the hive is loaded.",
-        variant: "destructive",
-      });
+      toast({ title: "Hive not loaded", description: "Try again once the hive is loaded.", variant: "destructive" });
       return;
     }
 
     setIsProcessing(true);
 
     try {
+      // IMPORTANT: Use correct filename/extension for the blob type (webm vs m4a)
+      const filename = filenameForBlob(audioBlob);
+      const file = new File([audioBlob], filename, { type: audioBlob.type || "application/octet-stream" });
+
       // 1) Transcribe
       const fd = new FormData();
-      fd.append("file", audioBlob, "inspection.m4a");
+      fd.append("file", file);
 
       const tResp = await fetch(`${API_BASE}/transcribe`, {
         method: "POST",
@@ -148,10 +146,7 @@ const InspectHive = () => {
 
       const extract = (await eResp.json()) as ExtractResponse;
 
-      toast({
-        title: "Inspection processed",
-        description: "Audio transcribed and structured into a report.",
-      });
+      toast({ title: "Inspection processed", description: "Audio transcribed and structured into a report." });
 
       // 3) Navigate to report page
       navigate("/inspection-report", {
@@ -185,9 +180,7 @@ const InspectHive = () => {
   if (!hive) {
     return (
       <AppLayout title="Hive Not Found" showBack>
-        <p className="text-muted-foreground">
-          {isLoadingHive ? "Loading hive..." : "This hive doesn't exist."}
-        </p>
+        <p className="text-muted-foreground">{isLoadingHive ? "Loading hive..." : "This hive doesn't exist."}</p>
       </AppLayout>
     );
   }
@@ -207,16 +200,13 @@ const InspectHive = () => {
           <h4 className="font-serif font-semibold text-foreground mb-2">💡 Inspection tips</h4>
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             <li>
-              • Mention frame numbers: <span className="text-foreground">"Frame 1 is..."</span>
+              • Say frame numbers: <span className="text-foreground">"Frame 1 is..."</span>
             </li>
             <li>
-              • State percentages: <span className="text-foreground">"about 60% honey"</span>
+              • Use percentages: <span className="text-foreground">"about 60% honey"</span>
             </li>
             <li>
-              • Note queen status: <span className="text-foreground">"EOQ" / "queen not seen"</span>
-            </li>
-            <li>
-              • Mention eggs/larvae: <span className="text-foreground">"eggs visible"</span>
+              • Queen status: <span className="text-foreground">"EOQ" / "queen not seen"</span>
             </li>
           </ul>
         </div>
