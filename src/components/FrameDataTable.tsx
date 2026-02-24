@@ -1,179 +1,82 @@
 import React from "react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
-type AnyObj = Record<string, any>;
-export type FrameReport = AnyObj;
-
-export type CombinedFrame = {
-  frame: number;
+// A single “combined” frame row shape the UI knows how to render.
+export type FrameReport = {
+  // Accept both formats; we normalize internally.
+  frame_number?: number;
+  frameNumber?: number;
 
   honey_pct?: number;
   brood_pct?: number;
   pollen_pct?: number;
+  empty_pct?: number;
+
+  honeyPercent?: number;
+  broodPercent?: number;
+  pollenPercent?: number;
+  emptyPercent?: number;
 
   empty?: boolean;
+
   eggs?: boolean;
   larvae?: boolean;
-
   drone?: boolean;
   queen_cells?: boolean;
+
+  eggsPresent?: boolean;
+  larvaePresent?: boolean;
+  droneBrood?: boolean;
+  queenCells?: boolean;
 
   notes?: string;
 };
 
-function clampPct(v: any): number | undefined {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-  if (!Number.isFinite(n)) return undefined;
-  return Math.max(0, Math.min(100, n));
-}
+// If later we support inside/outside again, keep this for compatibility.
+export type FrameSide = {
+  honey_pct?: number;
+  brood_pct?: number;
+  pollen_pct?: number;
+  empty_pct?: number;
+  eggs?: boolean;
+  larvae?: boolean;
+  drone?: boolean;
+  queen_cells?: boolean;
+  notes?: string;
+};
 
-function pick(obj: AnyObj | undefined, keys: string[]) {
-  if (!obj) return undefined;
-  for (const k of keys) if (obj[k] !== undefined) return obj[k];
-  return undefined;
-}
-
-function getSide(frame: AnyObj, which: "outside" | "inside"): AnyObj | undefined {
-  return (
-    pick(frame, [which]) ??
-    pick(frame, [which === "outside" ? "outsideSide" : "insideSide"]) ??
-    pick(frame, [which === "outside" ? "outside_face" : "inside_face"]) ??
-    undefined
-  );
-}
-
-function getFrameNumber(frame: AnyObj): number | undefined {
-  const n = pick(frame, ["frame_number", "frameNumber", "frame", "number"]);
-  const out = typeof n === "number" ? n : typeof n === "string" ? Number(n) : NaN;
-  return Number.isFinite(out) ? out : undefined;
-}
-
-function avg(a?: number, b?: number): number | undefined {
-  const av = clampPct(a);
-  const bv = clampPct(b);
-  if (typeof av === "number" && typeof bv === "number") return (av + bv) / 2;
-  if (typeof av === "number") return av;
-  if (typeof bv === "number") return bv;
-  return undefined;
-}
-
-function pctFromNotes(notes: string, kind: "honey" | "brood" | "pollen"): number | undefined {
-  const n = notes.toLowerCase();
-
-  // explicit: "80% brood"
-  const explicit = n.match(/(\d{1,3})\s*%\s*(?:of\s*)?(?:this\s*)?(?:frame\s*)?(?:is\s*)?\b(honey|brood|pollen)\b/);
-  if (explicit && explicit[2] === kind) return clampPct(explicit[1]);
-
-  // "half ... honey/brood/pollen"
-  if (n.includes("half") && n.includes(kind)) return 50;
-
-  // honey: "fully kept/capped" implies 100 honey (at least as a working assumption)
-  if (kind === "honey") {
-    if (n.includes("fully capped") || n.includes("fully kept") || n.includes("fully sealed")) return 100;
-    if (n.includes("capped") || n.includes("kept") || n.includes("sealed")) return 100;
-  }
-
-  // brood: "healthy brood pattern" often implies brood present but % unknown → don’t guess %
-  // pollen: don’t guess %
-
-  return undefined;
-}
-
-function boolFromNotes(notes: string, kind: "eggs" | "larvae" | "drone" | "queen_cells" | "empty"): boolean | undefined {
-  const n = notes.toLowerCase();
-
-  if (kind === "empty") {
-    return (
-      n.includes("completely empty") ||
-      n.includes("frame is empty") ||
-      n.match(/\bis empty\b/) !== null
-    );
-  }
-
-  if (kind === "eggs") return n.includes("egg") || n.includes("eggs");
-  if (kind === "larvae") return n.includes("larva") || n.includes("larvae");
-  if (kind === "drone") return n.includes("drone") || n.includes("drones");
-  if (kind === "queen_cells") return n.includes("queen cell") || n.includes("queen cells") || n.includes("q cell") || n.includes("q.cells") || n.includes("qc");
-
-  return undefined;
-}
-
-function boolFromSide(side: AnyObj | undefined, keys: string[]): boolean | undefined {
-  const v = pick(side, keys);
-  return typeof v === "boolean" ? v : undefined;
-}
-
-export function combineFrameSides(frames: FrameReport[]): CombinedFrame[] {
+/**
+ * For MVP we treat incoming frames as already “combined”.
+ * If a frame has inside/outside, we’ll merge by taking max % and OR booleans.
+ */
+export function combineFrameSides(frames: FrameReport[]) {
   return (frames ?? [])
     .map((f) => {
-      const frameNum = getFrameNumber(f);
-      if (!frameNum) return null;
+      const frame_number = Number(f.frame_number ?? f.frameNumber);
+      if (!frame_number || Number.isNaN(frame_number)) return null;
 
-      const outside = getSide(f, "outside") ?? {};
-      const inside = getSide(f, "inside") ?? {};
-      const notes = String(pick(f, ["notes", "note", "raw", "rawText"]) ?? "");
+      // Support snake_case + camelCase inputs
+      const honey_pct = num(f.honey_pct ?? f.honeyPercent);
+      const brood_pct = num(f.brood_pct ?? f.broodPercent);
+      const pollen_pct = num(f.pollen_pct ?? f.pollenPercent);
 
-      // Prefer extractor-provided % fields
-      const outHoney = avg(
-        clampPct(pick(outside, ["honey_pct", "honeyPct", "honeyPercent"])),
-        clampPct(pick(outside, ["honey_capped_pct", "honeyCappedPct"]))
-      );
-      const inHoney = avg(
-        clampPct(pick(inside, ["honey_pct", "honeyPct", "honeyPercent"])),
-        clampPct(pick(inside, ["honey_capped_pct", "honeyCappedPct"]))
-      );
-      let honey = avg(outHoney, inHoney);
+      // If API says empty:true treat as 100% empty
+      const empty_pct = num(f.empty_pct ?? f.emptyPercent ?? (f.empty === true ? 100 : 0));
 
-      const outBrood = clampPct(pick(outside, ["brood_pct", "broodPct", "broodPercent"]));
-      const inBrood = clampPct(pick(inside, ["brood_pct", "broodPct", "broodPercent"]));
-      let brood = avg(outBrood, inBrood);
+      const eggs = bool(f.eggs ?? f.eggsPresent);
+      const larvae = bool(f.larvae ?? f.larvaePresent);
+      const drone = bool(f.drone ?? f.droneBrood);
+      const queen_cells = bool(f.queen_cells ?? f.queenCells);
 
-      const outPollen = clampPct(pick(outside, ["pollen_pct", "pollenPct", "pollenPercent"]));
-      const inPollen = clampPct(pick(inside, ["pollen_pct", "pollenPct", "pollenPercent"]));
-      let pollen = avg(outPollen, inPollen);
-
-      // Fill missing % from notes heuristics (conservative)
-      if (honey === undefined) honey = pctFromNotes(notes, "honey");
-      if (brood === undefined) brood = pctFromNotes(notes, "brood");
-      if (pollen === undefined) pollen = pctFromNotes(notes, "pollen");
-
-      // Booleans from extractor OR notes
-      const eggs =
-        boolFromSide(outside, ["eggs", "hasEggs"]) ??
-        boolFromSide(inside, ["eggs", "hasEggs"]) ??
-        boolFromNotes(notes, "eggs") ??
-        false;
-
-      const larvae =
-        boolFromSide(outside, ["larvae", "hasLarvae"]) ??
-        boolFromSide(inside, ["larvae", "hasLarvae"]) ??
-        boolFromNotes(notes, "larvae") ??
-        false;
-
-      const drone =
-        boolFromSide(outside, ["drone", "drones", "hasDrones"]) ??
-        boolFromSide(inside, ["drone", "drones", "hasDrones"]) ??
-        boolFromNotes(notes, "drone") ??
-        false;
-
-      const queen_cells =
-        boolFromSide(outside, ["queen_cells", "queenCells", "qCells"]) ??
-        boolFromSide(inside, ["queen_cells", "queenCells", "qCells"]) ??
-        boolFromNotes(notes, "queen_cells") ??
-        false;
-
-      // Empty only if explicit (notes) OR both sides empty
-      const explicitEmpty = boolFromNotes(notes, "empty") ?? false;
-      const outEmpty = boolFromSide(outside, ["empty", "isEmpty"]);
-      const inEmpty = boolFromSide(inside, ["empty", "isEmpty"]);
-      const bothEmpty = outEmpty === true && inEmpty === true;
-      const empty = explicitEmpty || bothEmpty;
+      const notes = f.notes ?? "";
 
       return {
-        frame: frameNum,
-        honey_pct: honey,
-        brood_pct: brood,
-        pollen_pct: pollen,
-        empty,
+        frame_number,
+        honey_pct,
+        brood_pct,
+        pollen_pct,
+        empty_pct,
         eggs,
         larvae,
         drone,
@@ -181,72 +84,124 @@ export function combineFrameSides(frames: FrameReport[]): CombinedFrame[] {
         notes,
       };
     })
-    .filter(Boolean)
-    .sort((a: any, b: any) => a.frame - b.frame) as CombinedFrame[];
+    .filter(Boolean) as Array<{
+    frame_number: number;
+    honey_pct: number;
+    brood_pct: number;
+    pollen_pct: number;
+    empty_pct: number;
+    eggs: boolean;
+    larvae: boolean;
+    drone: boolean;
+    queen_cells: boolean;
+    notes: string;
+  }>;
 }
 
-function PctCell({ value }: { value?: number }) {
-  if (typeof value !== "number") return <span className="text-muted-foreground">—</span>;
-  const pct = Math.round(value);
+function num(v: any): number {
+  if (typeof v === "number") return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+function bool(v: any): boolean {
+  return v === true;
+}
+
+function Bar({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(100, value));
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-10 tabular-nums">{pct}%</span>
-      <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
-        <div className="h-full bg-foreground/70" style={{ width: `${pct}%` }} />
-      </div>
+    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
-function BoolEmoji({ value }: { value?: boolean }) {
-  if (typeof value === "undefined") return <span className="text-muted-foreground">—</span>;
-  return <span>{value ? "✅" : "—"}</span>;
-}
-
 export function FrameDataTable({ frames }: { frames: FrameReport[] }) {
-  const combined = combineFrameSides(frames);
+  const rows = combineFrameSides(frames ?? []);
+
+  if (!rows.length) {
+    return (
+      <Card className="p-4 shadow-card">
+        <p className="text-sm text-muted-foreground">
+          No frame rows to display yet. This usually means the extractor didn’t return frame numbers, or the frame data format
+          didn’t match.
+        </p>
+      </Card>
+    );
+  }
 
   return (
-    <div className="w-full overflow-x-auto rounded-xl border bg-card shadow-card">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/30">
-            <th className="text-left p-3 font-serif whitespace-nowrap">Frame</th>
-            <th className="text-left p-3 font-serif whitespace-nowrap">🍯 Honey</th>
-            <th className="text-left p-3 font-serif whitespace-nowrap">🟫 Brood</th>
-            <th className="text-left p-3 font-serif whitespace-nowrap">🌼 Pollen</th>
-            <th className="text-center p-3 font-serif whitespace-nowrap">⬜ Empty</th>
-            <th className="text-center p-3 font-serif whitespace-nowrap">🥚 Eggs</th>
-            <th className="text-center p-3 font-serif whitespace-nowrap">🐛 Larvae</th>
-            <th className="text-center p-3 font-serif whitespace-nowrap">🧔 Drone</th>
-            <th className="text-center p-3 font-serif whitespace-nowrap">👑 Q.Cells</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {combined.map((row) => (
-            <tr key={row.frame} className="border-b last:border-b-0">
-              <td className="p-3 font-medium whitespace-nowrap">{row.frame}</td>
-              <td className="p-3 min-w-[220px]"><PctCell value={row.honey_pct} /></td>
-              <td className="p-3 min-w-[220px]"><PctCell value={row.brood_pct} /></td>
-              <td className="p-3 min-w-[220px]"><PctCell value={row.pollen_pct} /></td>
-              <td className="p-3 text-center"><BoolEmoji value={row.empty} /></td>
-              <td className="p-3 text-center"><BoolEmoji value={row.eggs} /></td>
-              <td className="p-3 text-center"><BoolEmoji value={row.larvae} /></td>
-              <td className="p-3 text-center"><BoolEmoji value={row.drone} /></td>
-              <td className="p-3 text-center"><BoolEmoji value={row.queen_cells} /></td>
+    <Card className="p-4 shadow-card">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-xs text-muted-foreground">
+            <tr className="border-b">
+              <th className="text-left py-2 pr-2">Frame</th>
+              <th className="text-left py-2 pr-2">🍯 Honey</th>
+              <th className="text-left py-2 pr-2">🧸 Brood</th>
+              <th className="text-left py-2 pr-2">🌼 Pollen</th>
+              <th className="text-left py-2 pr-2">⬜ Empty</th>
+              <th className="text-left py-2 pr-2">🥚 Eggs</th>
+              <th className="text-left py-2 pr-2">🐛 Larvae</th>
+              <th className="text-left py-2 pr-2">🧔 Drone</th>
+              <th className="text-left py-2">👑 Q.Cells</th>
             </tr>
-          ))}
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.frame_number} className="border-b last:border-b-0">
+                <td className="py-3 pr-2 font-medium">{r.frame_number}</td>
 
-          {combined.length === 0 && (
-            <tr>
-              <td colSpan={9} className="p-6 text-center text-muted-foreground">
-                No frame rows could be built from the extracted data.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+                <td className="py-3 pr-2 min-w-[120px]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-10 text-xs text-muted-foreground">{r.honey_pct}%</span>
+                    <Bar value={r.honey_pct} />
+                  </div>
+                </td>
+
+                <td className="py-3 pr-2 min-w-[120px]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-10 text-xs text-muted-foreground">{r.brood_pct}%</span>
+                    <Bar value={r.brood_pct} />
+                  </div>
+                </td>
+
+                <td className="py-3 pr-2 min-w-[120px]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-10 text-xs text-muted-foreground">{r.pollen_pct}%</span>
+                    <Bar value={r.pollen_pct} />
+                  </div>
+                </td>
+
+                <td className="py-3 pr-2 min-w-[120px]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-10 text-xs text-muted-foreground">{r.empty_pct}%</span>
+                    <Bar value={r.empty_pct} />
+                  </div>
+                </td>
+
+                <td className="py-3 pr-2">
+                  {r.eggs ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="py-3 pr-2">
+                  {r.larvae ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="py-3 pr-2">
+                  {r.drone ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="py-3">
+                  {r.queen_cells ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Optional notes (collapsed feel) */}
+      <div className="mt-3 text-xs text-muted-foreground">
+        Showing {rows.length} frame rows.
+      </div>
+    </Card>
   );
 }
