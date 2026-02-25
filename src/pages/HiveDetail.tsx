@@ -8,6 +8,51 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 import { getHives, getInspectionsByHive, type Hive, type InspectionListItem } from "@/lib/api";
+import { normalizeFrames, type FrameReport } from "@/components/FrameDataTable";
+
+function toNum(v: unknown): number {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function getSummary(extract: unknown) {
+  const ex = (extract && typeof extract === "object" ? extract : {}) as {
+    totals?: {
+      honey_equiv_frames?: unknown;
+      brood_equiv_frames?: unknown;
+      pollen_equiv_frames?: unknown;
+      frames_reported?: unknown;
+    };
+    frames?: FrameReport[];
+  };
+
+  const totals = ex.totals ?? {};
+  const honeyFromTotals = toNum(totals.honey_equiv_frames);
+  const broodFromTotals = toNum(totals.brood_equiv_frames);
+  const pollenFromTotals = toNum(totals.pollen_equiv_frames);
+  const framesFromTotals = toNum(totals.frames_reported);
+
+  if (honeyFromTotals > 0 || broodFromTotals > 0 || pollenFromTotals > 0 || framesFromTotals > 0) {
+    return {
+      honey: honeyFromTotals,
+      brood: broodFromTotals,
+      pollen: pollenFromTotals,
+      frames: framesFromTotals,
+    };
+  }
+
+  const normalized = normalizeFrames(Array.isArray(ex.frames) ? ex.frames : []);
+  const sum = (key: "honey_pct" | "brood_pct" | "pollen_pct") =>
+    normalized.reduce((acc, row) => acc + (typeof row[key] === "number" ? row[key] : 0), 0);
+
+  return {
+    honey: sum("honey_pct") / 100,
+    brood: sum("brood_pct") / 100,
+    pollen: sum("pollen_pct") / 100,
+    frames: normalized.length,
+  };
+}
 
 const HiveDetail = () => {
   const params = useParams();
@@ -141,7 +186,10 @@ const HiveDetail = () => {
         <Card className="p-4">
           <h3 className="font-serif text-lg font-semibold text-foreground mb-3">Inspection history</h3>
           {inspections.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No inspections yet</p>
+            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">No inspections yet</p>
+              <p className="mt-1">Record your first inspection to see it here.</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {inspections.map((inspection) => {
@@ -149,14 +197,44 @@ const HiveDetail = () => {
                   ? inspection.recordedAtLocal
                   : new Date(inspection.createdAt).toLocaleDateString();
                 const snippet = (inspection.transcriptText ?? "").trim();
+                const summary = getSummary(inspection.extract);
                 return (
-                  <div key={inspection.id} className="rounded-md border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-foreground">{dateLabel}</p>
-                      <Badge variant="secondary">{inspection.status || "ready"}</Badge>
+                  <div key={inspection.id} className="rounded-xl border bg-card p-3 shadow-sm">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-foreground">{dateLabel}</p>
+                          <Badge variant="secondary" className="capitalize">
+                            {inspection.status || "ready"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {inspection.recordedAtLocal ? "Recorded date" : "Created date"}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg bg-muted/60 px-2 py-1.5">
+                          <p className="text-[11px] text-muted-foreground">🍯 Honey</p>
+                          <p className="text-sm font-semibold text-foreground">{summary.honey.toFixed(1)}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/60 px-2 py-1.5">
+                          <p className="text-[11px] text-muted-foreground">🐣 Brood</p>
+                          <p className="text-sm font-semibold text-foreground">{summary.brood.toFixed(1)}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/60 px-2 py-1.5">
+                          <p className="text-[11px] text-muted-foreground">🌼 Pollen</p>
+                          <p className="text-sm font-semibold text-foreground">{summary.pollen.toFixed(1)}</p>
+                        </div>
+                        <div className="rounded-lg bg-muted/60 px-2 py-1.5">
+                          <p className="text-[11px] text-muted-foreground">🖼️ Frames</p>
+                          <p className="text-sm font-semibold text-foreground">{summary.frames}</p>
+                        </div>
+                      </div>
                     </div>
+
                     <p className="text-sm text-muted-foreground mt-2">
-                      {snippet ? `${snippet.slice(0, 80)}${snippet.length > 80 ? "..." : ""}` : "No transcript text"}
+                      {snippet ? `${snippet.slice(0, 120)}${snippet.length > 120 ? "..." : ""}` : "No transcript text"}
                     </p>
                     <div className="mt-3">
                       <Button
