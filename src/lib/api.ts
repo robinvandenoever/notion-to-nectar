@@ -1,38 +1,153 @@
 // src/lib/api.ts
-// Thin API client for the local Express backend.
-// Keeps names simple for UI: getHives(), createHive(), and Hive type.
+// Thin client for the Railway API.
+// All network calls throw useful errors on non-2xx so UI never fails silently.
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
-
-export type Hive = {
+export type ApiHiveRow = {
   id: string;
   name: string;
   apiary_name: string | null;
   created_at: string;
 };
 
-export async function getHives(): Promise<Hive[]> {
-  const resp = await fetch(`${API_BASE}/hives`);
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`GET /hives failed (${resp.status}): ${text}`);
-  }
-  const data = (await resp.json()) as { hives: Hive[] };
-  return data.hives;
+export type CreateHiveInput = {
+  name: string;
+  apiaryName?: string;
+};
+
+export type CreateInspectionInput = {
+  hiveId: string;
+  recordedAtLocal: string; // YYYY-MM-DD
+  transcriptText: string;
+  extract: any; // JSON returned by /extract
+};
+
+export type ApiInspectionRow = {
+  id: string;
+  hive_id: string;
+  recorded_at_local: string | null;
+  transcript_text: string | null;
+  extract_json: any | null;
+  created_at: string;
+};
+
+export type Inspection = {
+  id: string;
+  hiveId: string;
+  recordedAtLocal: string | null;
+  createdAt: string;
+  transcriptText: string;
+  extract: any;
+};
+
+function getApiBaseUrl() {
+  const v = (import.meta as any)?.env?.VITE_API_BASE_URL;
+  return (v && String(v).trim()) || "https://api-production-fb9f.up.railway.app";
 }
 
-export async function createHive(input: { name: string; apiaryName?: string }): Promise<Hive> {
-  const resp = await fetch(`${API_BASE}/hives`, {
+async function readJsonOrText(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+async function request(path: string, init?: RequestInit) {
+  const base = getApiBaseUrl();
+  const url = `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+
+  const res = await fetch(url, init);
+
+  if (!res.ok) {
+    const body = await readJsonOrText(res);
+    const msg =
+      typeof body === "string"
+        ? body
+        : body?.message || body?.error || JSON.stringify(body);
+    throw new Error(`API ${res.status} ${res.statusText}: ${msg}`);
+  }
+
+  const raw = await res.text();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function normalizeInspection(row: ApiInspectionRow): Inspection {
+  return {
+    id: row.id,
+    hiveId: row.hive_id,
+    recordedAtLocal: row.recorded_at_local ?? null,
+    createdAt: row.created_at,
+    transcriptText: row.transcript_text ?? "",
+    extract: row.extract_json ?? {},
+  };
+}
+
+// -------------------
+// Hives
+// -------------------
+export async function getHives(): Promise<ApiHiveRow[]> {
+  const data = await request("/hives");
+  return (data?.hives ?? []) as ApiHiveRow[];
+}
+
+export async function createHive(input: CreateHiveInput): Promise<ApiHiveRow> {
+  const data = await request("/hives", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return data?.hive as ApiHiveRow;
+}
+
+// -------------------
+// Transcribe + Extract
+// -------------------
+export async function transcribeAudio(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+
+  const data = await request("/transcribe", {
+    method: "POST",
+    body: form,
+  });
+
+  return String(data?.transcriptText ?? "");
+}
+
+export async function extractFromTranscript(transcriptText: string): Promise<any> {
+  const data = await request("/extract", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transcriptText }),
+  });
+  return data;
+}
+
+// -------------------
+// Inspections
+// -------------------
+export async function createInspection(
+  input: CreateInspectionInput
+): Promise<{ inspectionId: string }> {
+  const data = await request("/inspections", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
 
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`POST /hives failed (${resp.status}): ${text}`);
-  }
+  return { inspectionId: String(data?.inspectionId ?? "") };
+}
 
-  const data = (await resp.json()) as { hive: Hive };
-  return data.hive;
+// Fetch a single inspection by ID (refresh-safe InspectionReport)
+// Returns a UI-friendly shape (camelCase + extract)
+export async function getInspection(inspectionId: string): Promise<Inspection> {
+  const data = await request(`/inspections/${encodeURIComponent(inspectionId)}`);
+  const row = data?.inspection as ApiInspectionRow;
+  return normalizeInspection(row);
 }
