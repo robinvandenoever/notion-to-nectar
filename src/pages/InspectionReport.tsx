@@ -172,10 +172,12 @@ export default function InspectionReport() {
         ) : null}
 
         <div>
-          <p className="text-xs text-muted-foreground mb-2">
-            frames raw: {rawFrames.length} / normalized: {normalized.length} / nonzero honey rows:{" "}
-            {normalized.filter((r) => r.honey_pct > 0).length}
-          </p>
+          {import.meta.env.DEV && (
+            <p className="text-xs text-muted-foreground mb-2">
+              frames raw: {rawFrames.length} / normalized: {normalized.length} / nonzero honey:{" "}
+              {normalized.filter((r) => r.honey_pct > 0).length}
+            </p>
+          )}
           <h3 className="font-serif text-lg font-semibold text-foreground mb-3">Frame-by-frame</h3>
           <FrameDataTable frames={rawFrames} />
         </div>

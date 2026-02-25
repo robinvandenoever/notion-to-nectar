@@ -58,7 +58,8 @@ export function VoiceRecorder({ onRecordingComplete, isProcessing }: VoiceRecord
             "webm";
 
           const filename = `recording-${Date.now()}.${ext}`;
-          const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
+          const mimeType = blob.type || (ext === "m4a" ? "audio/mp4" : ext === "mp3" ? "audio/mpeg" : "audio/webm");
+          const file = new File([blob], filename, { type: mimeType });
 
           // Stop mic
           stream.getTracks().forEach((t) => t.stop());
@@ -70,7 +71,7 @@ export function VoiceRecorder({ onRecordingComplete, isProcessing }: VoiceRecord
         }
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000); // Request data every 1s (helps Safari, ensures chunks are available on stop)
       setIsRecording(true);
       setDuration(0);
 

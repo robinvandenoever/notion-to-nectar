@@ -25,33 +25,65 @@ const InspectHive = () => {
     );
   }
 
-  const handleRecordingComplete = async (audioFile: File) => {
+  const handleRecordingComplete = async (audioInput: File | Blob) => {
     setIsProcessing(true);
 
     try {
-      if (!audioFile || audioFile.size === 0) {
+      // Ensure we always pass a real File to transcribeAudio (voice may pass Blob in edge cases)
+      const file: File =
+        audioInput instanceof File
+          ? audioInput
+          : new File([audioInput], `recording-${Date.now()}.webm`, {
+              type: audioInput.type || "audio/webm",
+            });
+
+      if (!file || file.size === 0) {
         throw new Error("Audio file is empty. Please try again.");
       }
 
-      console.log("[inspect] audio file:", {
-        name: audioFile.name,
-        type: audioFile.type,
-        size: audioFile.size,
-      });
+      if (import.meta.env.DEV) {
+        console.log("[inspect] audio file:", { name: file.name, type: file.type, size: file.size });
+      }
 
       // 1) Transcribe
-      const transcriptText = await transcribeAudio(audioFile);
+      const transcriptText = await transcribeAudio(file);
+      if (import.meta.env.DEV) {
+        console.log("[inspect] transcript length:", transcriptText?.length ?? 0);
+      }
       if (!transcriptText?.trim()) throw new Error("Transcription returned empty text.");
 
       // 2) Extract
       const extract = await extractFromTranscript(transcriptText);
+      if (import.meta.env.DEV) {
+        console.log(
+          "[inspect] extract.frames:",
+          Array.isArray(extract?.frames) ? extract.frames.length : "no frames"
+        );
+      }
+
+      if (!extract || typeof extract !== "object") {
+        toast({
+          title: "Extraction failed",
+          description: "Could not extract frame data. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!Array.isArray(extract.frames) || extract.frames.length === 0) {
+        toast({
+          title: "No frame data",
+          description: "The extractor did not find any frames. Try speaking more clearly about each frame (e.g. 'Frame 1 honey 80%').",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // 3) Save
       const recordedAtLocal = new Date().toISOString().slice(0, 10);
       const { inspectionId } = await createInspection({
         hiveId,
         recordedAtLocal,
-        transcriptText,
+        transcriptText: transcriptText.trim(),
         extract,
       });
 
