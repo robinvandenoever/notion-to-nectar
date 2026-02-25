@@ -1,78 +1,87 @@
-import { create } from 'zustand';
-import { Hive, Inspection, mockHives, mockInspections } from './data';
+// src/lib/store.ts
+// Client-side store for MVP UI state.
+// Note: Backend (Railway) is the source of truth long-term.
 
-interface AppStore {
+import { create } from "zustand";
+
+export type HiveStatus = "new" | "healthy" | "warning" | "critical";
+
+export type Hive = {
+  id: string;
+  name: string;
+  apiary: string;
+  frameCount: number;
+  status: HiveStatus;
+};
+
+export type Inspection = {
+  id: string;
+  hiveId: string;
+  date: string;
+  rawTranscript: string;
+  frames: any[];
+  queenSeen: boolean;
+  broodPattern?: string;
+  temperament?: string;
+  healthFlags: string[];
+  honeyEquivFrames: number;
+  broodEquivFrames: number;
+  pollenEquivFrames: number;
+  followUpQuestions: string[];
+};
+
+type AppStore = {
   hives: Hive[];
   inspections: Inspection[];
 
-  // Apiary
-  addApiary: (name: string) => void;
+  // NEW: allow replacing hives from server
+  setHives: (hives: Hive[]) => void;
+
+  addHive: (hive: Omit<Hive, "id">) => void;
+
+  addInspection: (inspection: Inspection) => void;
+
   renameApiary: (oldName: string, newName: string) => void;
   deleteApiary: (name: string) => void;
+};
 
-  // Hive
-  addHive: (hive: Omit<Hive, 'id'>) => void;
-  updateHive: (id: string, updates: Partial<Omit<Hive, 'id'>>) => void;
-  deleteHive: (id: string) => void;
-
-  // Inspection
-  addInspection: (inspection: Inspection) => void;
-  deleteInspection: (id: string) => void;
+function makeId(prefix = "hive") {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 }
 
-let nextHiveId = 100;
-let nextInspId = 100;
+export const useAppStore = create<AppStore>((set, get) => ({
+  hives: [],
+  inspections: [],
 
-export const useAppStore = create<AppStore>((set) => ({
-  hives: [...mockHives],
-  inspections: [...mockInspections],
-
-  addApiary: (name) =>
-    set((s) => {
-      // Apiary is just a string on hives — nothing to persist separately.
-      // We just need it selectable. No-op if already exists.
-      return s;
-    }),
-
-  renameApiary: (oldName, newName) =>
-    set((s) => ({
-      hives: s.hives.map((h) =>
-        h.apiary === oldName ? { ...h, apiary: newName } : h
-      ),
-    })),
-
-  deleteApiary: (name) =>
-    set((s) => {
-      const hiveIds = s.hives.filter((h) => h.apiary === name).map((h) => h.id);
-      return {
-        hives: s.hives.filter((h) => h.apiary !== name),
-        inspections: s.inspections.filter((i) => !hiveIds.includes(i.hiveId)),
-      };
-    }),
+  setHives: (hives) => set({ hives }),
 
   addHive: (hive) =>
-    set((s) => ({
-      hives: [...s.hives, { ...hive, id: String(++nextHiveId) }],
-    })),
-
-  updateHive: (id, updates) =>
-    set((s) => ({
-      hives: s.hives.map((h) => (h.id === id ? { ...h, ...updates } : h)),
-    })),
-
-  deleteHive: (id) =>
-    set((s) => ({
-      hives: s.hives.filter((h) => h.id !== id),
-      inspections: s.inspections.filter((i) => i.hiveId !== id),
+    set((state) => ({
+      hives: [
+        {
+          id: makeId("hive"),
+          ...hive,
+        },
+        ...state.hives,
+      ],
     })),
 
   addInspection: (inspection) =>
-    set((s) => ({
-      inspections: [...s.inspections, { ...inspection, id: `insp-${++nextInspId}` }],
+    set((state) => ({
+      inspections: [...state.inspections, { ...inspection, id: makeId("insp") }],
     })),
 
-  deleteInspection: (id) =>
-    set((s) => ({
-      inspections: s.inspections.filter((i) => i.id !== id),
+  renameApiary: (oldName, newName) =>
+    set((state) => ({
+      hives: state.hives.map((h) => (h.apiary === oldName ? { ...h, apiary: newName } : h)),
+    })),
+
+  deleteApiary: (name) =>
+    set((state) => ({
+      hives: state.hives.filter((h) => h.apiary !== name),
+      inspections: state.inspections.filter((i) => {
+        const hive = get().hives.find((h) => h.id === i.hiveId);
+        return hive ? hive.apiary !== name : true;
+      }),
     })),
 }));

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppLayout } from "@/components/AppLayout";
@@ -32,14 +32,38 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
+import { getHives } from "@/lib/api";
 import { MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
 export default function Index() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Store is the UI source of truth for now (fastest path).
-  const { hives, renameApiary, deleteApiary } = useAppStore();
+  const { hives, setHives, renameApiary, deleteApiary } = useAppStore();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await getHives();
+        const ui = rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          apiary: r.apiary_name ?? "Apiary",
+          frameCount: 10,
+          status: "new" as const,
+        }));
+        setHives(ui);
+      } catch (e: any) {
+        console.error(e);
+        toast({
+          title: "Failed to load hives",
+          description: e?.message ?? "Could not load hives from the server.",
+          variant: "destructive",
+        });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const apiaries = useMemo(() => [...new Set(hives.map((h) => h.apiary))], [hives]);
 
@@ -73,25 +97,6 @@ export default function Index() {
         <p className="text-muted-foreground">
           {hives.length} hives across {apiaries.length} {apiaries.length === 1 ? "location" : "locations"}
         </p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        <div className="bg-card rounded-xl p-4 text-center shadow-card">
-          <p className="text-2xl font-serif font-bold text-foreground">{hives.length}</p>
-          <p className="text-xs text-muted-foreground">Total Hives</p>
-        </div>
-        <div className="bg-card rounded-xl p-4 text-center shadow-card">
-          <p className="text-2xl font-serif font-bold text-foreground">
-            {hives.filter((h) => h.status === "healthy").length}
-          </p>
-          <p className="text-xs text-muted-foreground">Healthy</p>
-        </div>
-        <div className="bg-card rounded-xl p-4 text-center shadow-card">
-          <p className="text-2xl font-serif font-bold text-foreground">
-            {hives.filter((h) => h.status === "warning").length}
-          </p>
-          <p className="text-xs text-muted-foreground">Needs Attention</p>
-        </div>
       </div>
 
       {apiaries.map((apiary) => (
