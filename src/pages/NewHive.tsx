@@ -1,72 +1,50 @@
-// src/pages/NewHive.tsx
-// Create Hive page wired to Railway API (source of truth).
-
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { createHive, getHives } from "@/lib/api";
+import { useAppStore } from "@/lib/store";
+import { createHive } from "@/lib/api";
 
-const NewHive = () => {
+export default function NewHive() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
+  const { addHive, hives } = useAppStore();
+
+  const existingApiaries = [...new Set(hives.map((h) => h.apiary))];
   const prefilledApiary = searchParams.get("apiary") || "";
 
   const [name, setName] = useState("");
   const [apiary, setApiary] = useState(prefilledApiary);
   const [newApiary, setNewApiary] = useState("");
-  const [frameCount, setFrameCount] = useState("10"); // UI-only for now
-
-  const [existingApiaries, setExistingApiaries] = useState<string[]>([]);
-  const [loadingApiaries, setLoadingApiaries] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [frameCount, setFrameCount] = useState("10");
 
   const isNewApiary = apiary === "__new__";
   const finalApiary = isNewApiary ? newApiary.trim() : apiary;
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await getHives();
-        const apiaries = [...new Set((data.hives ?? []).map((h) => h.apiary_name ?? "Default Apiary"))];
-        setExistingApiaries(apiaries);
-      } catch (err) {
-        console.error(err);
-        toast({
-          title: "Error loading apiaries",
-          description: "Could not fetch apiaries from the API.",
-        });
-      } finally {
-        setLoadingApiaries(false);
-      }
-    })();
-  }, []);
-
-  const canSubmit = useMemo(() => {
-    return !!name.trim() && !!finalApiary && !submitting;
-  }, [name, finalApiary, submitting]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !finalApiary) return;
 
-    setSubmitting(true);
     try {
+      // Persist to DB
       await createHive({
         name: name.trim(),
         apiaryName: finalApiary,
+      });
+
+      // Keep store behavior unchanged (it generates id internally)
+      addHive({
+        name: name.trim(),
+        apiary: finalApiary,
+        frameCount: Number(frameCount),
+        status: "new",
       });
 
       toast({
@@ -74,25 +52,20 @@ const NewHive = () => {
         description: `${name.trim()} has been added to ${finalApiary}.`,
       });
 
-      // We ignore frameCount for now; we’ll store it when we expand the DB schema.
       navigate("/");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       toast({
-        title: "Create failed",
-        description: "Could not create hive. Please try again.",
+        title: "Failed to create hive",
+        description: err?.message ?? "Please try again.",
+        variant: "destructive",
       });
-    } finally {
-      setSubmitting(false);
     }
   };
 
   return (
     <AppLayout title="New Hive" showBack>
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-6 animate-fade-in max-w-sm mx-auto"
-      >
+      <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in max-w-sm mx-auto">
         <div className="space-y-2">
           <Label htmlFor="name">Hive Name</Label>
           <Input
@@ -106,9 +79,9 @@ const NewHive = () => {
 
         <div className="space-y-2">
           <Label htmlFor="apiary">Apiary</Label>
-          <Select value={apiary} onValueChange={setApiary} disabled={loadingApiaries}>
+          <Select value={apiary} onValueChange={setApiary}>
             <SelectTrigger>
-              <SelectValue placeholder={loadingApiaries ? "Loading…" : "Select an apiary"} />
+              <SelectValue placeholder="Select an apiary" />
             </SelectTrigger>
             <SelectContent>
               {existingApiaries.map((a) => (
@@ -145,21 +118,16 @@ const NewHive = () => {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
-            Stored later when we extend the database schema.
-          </p>
         </div>
 
         <Button
           type="submit"
           className="w-full gradient-honey text-primary-foreground shadow-honey"
-          disabled={!canSubmit}
+          disabled={!name.trim() || !finalApiary}
         >
-          {submitting ? "Creating…" : "Create Hive"}
+          Create Hive
         </Button>
       </form>
     </AppLayout>
   );
-};
-
-export default NewHive;
+}
