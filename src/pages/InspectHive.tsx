@@ -25,13 +25,12 @@ const InspectHive = () => {
     );
   }
 
-  // VoiceRecorder now returns a File (recorded or uploaded)
   const handleRecordingComplete = async (audioFile: File) => {
     setIsProcessing(true);
 
     try {
       if (!audioFile || audioFile.size === 0) {
-        throw new Error("Recorded audio file is empty. Please try again.");
+        throw new Error("Audio file is empty. Please try again.");
       }
 
       console.log("[inspect] audio file:", {
@@ -40,24 +39,15 @@ const InspectHive = () => {
         size: audioFile.size,
       });
 
-      // 1) Whisper transcription
-      console.log("[inspect] transcribing...");
+      // 1) Transcribe
       const transcriptText = await transcribeAudio(audioFile);
-      console.log("[inspect] transcript length:", transcriptText?.length ?? 0);
+      if (!transcriptText?.trim()) throw new Error("Transcription returned empty text.");
 
-      if (!transcriptText || transcriptText.trim().length === 0) {
-        throw new Error("Transcription returned empty text.");
-      }
-
-      // 2) LLM extraction
-      console.log("[inspect] extracting...");
+      // 2) Extract
       const extract = await extractFromTranscript(transcriptText);
-      console.log("[inspect] extract result:", extract);
 
-      // 3) Persist inspection
-      console.log("[inspect] saving inspection...");
+      // 3) Save
       const recordedAtLocal = new Date().toISOString().slice(0, 10);
-
       const { inspectionId } = await createInspection({
         hiveId,
         recordedAtLocal,
@@ -65,24 +55,22 @@ const InspectHive = () => {
         extract,
       });
 
+      if (!inspectionId) {
+        throw new Error("Inspection was created but no inspectionId was returned.");
+      }
+
       toast({
         title: "Inspection processed",
         description: "Saved to your hive history.",
       });
 
-      // 4) Navigate by ID (refresh-safe)
       navigate(`/inspection/${inspectionId}`);
     } catch (err: any) {
       console.error("Inspection flow failed:", err);
 
-      const message =
-        err?.message ||
-        err?.toString?.() ||
-        "Could not process the audio. Please try again.";
-
       toast({
         title: "Processing failed",
-        description: message,
+        description: err?.message ?? "Could not process the audio. Please try again.",
         variant: "destructive",
       });
     } finally {
