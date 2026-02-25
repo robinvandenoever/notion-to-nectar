@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
-import { getHives, type Hive } from "@/lib/api";
+import { getHives, getInspectionsByHive, type Hive, type InspectionListItem } from "@/lib/api";
 
 const HiveDetail = () => {
   const params = useParams();
@@ -19,6 +19,7 @@ const HiveDetail = () => {
 
   const [loading, setLoading] = useState(true);
   const [hives, setHives] = useState<Hive[]>([]);
+  const [inspections, setInspections] = useState<InspectionListItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +45,29 @@ const HiveDetail = () => {
       cancelled = true;
     };
   }, [toast]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!hiveId) return;
+
+    (async () => {
+      try {
+        const data = await getInspectionsByHive(hiveId);
+        if (!cancelled) setInspections(data);
+      } catch (err: any) {
+        console.error(err);
+        toast({
+          title: "Failed to load inspections",
+          description: err?.message || "Could not fetch inspection history.",
+          variant: "destructive",
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hiveId, toast]);
 
   const hive = useMemo(() => {
     if (!hiveId) return undefined;
@@ -113,6 +137,42 @@ const HiveDetail = () => {
         >
           Start inspection
         </Button>
+
+        <Card className="p-4">
+          <h3 className="font-serif text-lg font-semibold text-foreground mb-3">Inspection history</h3>
+          {inspections.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No inspections yet</p>
+          ) : (
+            <div className="space-y-3">
+              {inspections.map((inspection) => {
+                const dateLabel = inspection.recordedAtLocal
+                  ? inspection.recordedAtLocal
+                  : new Date(inspection.createdAt).toLocaleDateString();
+                const snippet = (inspection.transcriptText ?? "").trim();
+                return (
+                  <div key={inspection.id} className="rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground">{dateLabel}</p>
+                      <Badge variant="secondary">{inspection.status || "ready"}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {snippet ? `${snippet.slice(0, 80)}${snippet.length > 80 ? "..." : ""}` : "No transcript text"}
+                    </p>
+                    <div className="mt-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate(`/inspection/${inspection.id}`)}
+                      >
+                        View report
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
 
         <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
           Back to apiaries

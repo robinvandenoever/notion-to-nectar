@@ -8,6 +8,7 @@ export type ApiHiveRow = {
   apiary_name: string | null;
   created_at: string;
 };
+export type Hive = ApiHiveRow;
 
 export type CreateHiveInput = {
   name: string;
@@ -37,6 +38,16 @@ export type Inspection = {
   createdAt: string;
   transcriptText: string;
   extract: any;
+};
+
+export type InspectionListItem = {
+  id: string;
+  hiveId: string;
+  recordedAtLocal: string | null;
+  status: string;
+  transcriptText: string;
+  extract: any;
+  createdAt: string;
 };
 
 function getApiBaseUrl() {
@@ -142,6 +153,11 @@ export async function createInspection(
   });
 
   return { inspectionId: String(data?.inspectionId ?? "") };
+}
+
+export async function getInspectionsByHive(hiveId: string): Promise<InspectionListItem[]> {
+  const data = await request(`/inspections?hiveId=${encodeURIComponent(hiveId)}`);
+  return (data?.inspections ?? []) as InspectionListItem[];
 }
 
 // Fetch a single inspection by ID (refresh-safe InspectionReport)
