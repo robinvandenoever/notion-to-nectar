@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-import { FrameDataTable, type FrameReport, combineFrameSides } from "@/components/FrameDataTable";
+import { FrameDataTable, type FrameReport, type NormalizedFrameRow, normalizeFrames } from "@/components/FrameDataTable";
 import { getInspection, type Inspection } from "@/lib/api";
 
 type ExtractResponse = {
@@ -20,7 +20,7 @@ type ExtractResponse = {
   };
 };
 
-function sumPct(frames: ReturnType<typeof combineFrameSides>, key: "honey_pct" | "brood_pct" | "pollen_pct") {
+function sumPct(frames: NormalizedFrameRow[], key: "honey_pct" | "brood_pct" | "pollen_pct") {
   return frames.reduce((acc, f) => acc + (typeof f[key] === "number" ? (f[key] as number) : 0), 0);
 }
 
@@ -73,11 +73,11 @@ export default function InspectionReport() {
   }, [inspection]);
 
   const rawFrames = extract?.frames ?? [];
-  const combined = useMemo(() => combineFrameSides(rawFrames), [rawFrames]);
+  const normalized = useMemo(() => normalizeFrames(rawFrames), [rawFrames]);
 
-  const honeyEquiv = useMemo(() => sumPct(combined, "honey_pct") / 100, [combined]);
-  const broodEquiv = useMemo(() => sumPct(combined, "brood_pct") / 100, [combined]);
-  const pollenEquiv = useMemo(() => sumPct(combined, "pollen_pct") / 100, [combined]);
+  const honeyEquiv = useMemo(() => sumPct(normalized, "honey_pct") / 100, [normalized]);
+  const broodEquiv = useMemo(() => sumPct(normalized, "brood_pct") / 100, [normalized]);
+  const pollenEquiv = useMemo(() => sumPct(normalized, "pollen_pct") / 100, [normalized]);
 
   if (loading) {
     return (
@@ -133,7 +133,7 @@ export default function InspectionReport() {
           <p className="text-sm text-muted-foreground mb-1">{titleLine}</p>
 
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
-            <Badge variant="secondary">{combined.length} frames</Badge>
+            <Badge variant="secondary">{normalized.length} frames</Badge>
             {extract.queen?.mentioned ? (
               <Badge variant="secondary">Queen mentioned</Badge>
             ) : (
@@ -172,6 +172,10 @@ export default function InspectionReport() {
         ) : null}
 
         <div>
+          <p className="text-xs text-muted-foreground mb-2">
+            frames raw: {rawFrames.length} / normalized: {normalized.length} / nonzero honey rows:{" "}
+            {normalized.filter((r) => r.honey_pct > 0).length}
+          </p>
           <h3 className="font-serif text-lg font-semibold text-foreground mb-3">Frame-by-frame</h3>
           <FrameDataTable frames={rawFrames} />
         </div>

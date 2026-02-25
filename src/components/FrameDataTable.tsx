@@ -3,6 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 // A single “combined” frame row shape the UI knows how to render.
+// Accepts: (1) flat snake_case { frame_number, honey_pct, ... }, (2) flat camelCase,
+// or (3) inside/outside structure { frame_number, outside: { honey_pct, ... }, inside: { ... } }.
 export type FrameReport = {
   // Accept both formats; we normalize internally.
   frame_number?: number;
@@ -31,6 +33,24 @@ export type FrameReport = {
   queenCells?: boolean;
 
   notes?: string;
+
+  // Backend may return inside/outside structure (Railway API)
+  outside?: FrameSide | Record<string, unknown>;
+  inside?: FrameSide | Record<string, unknown>;
+};
+
+/** Normalized flat row shape (output of normalizeFrames). */
+export type NormalizedFrameRow = {
+  frame_number: number;
+  honey_pct: number;
+  brood_pct: number;
+  pollen_pct: number;
+  empty_pct: number;
+  eggs: boolean;
+  larvae: boolean;
+  drone: boolean;
+  queen_cells: boolean;
+  notes: string;
 };
 
 // If later we support inside/outside again, keep this for compatibility.
@@ -48,28 +68,54 @@ export type FrameSide = {
 
 /**
  * For MVP we treat incoming frames as already “combined”.
- * If a frame has inside/outside, we’ll merge by taking max % and OR booleans.
+ * Normalizes: (1) flat snake_case, (2) flat camelCase, (3) inside/outside structure.
+ * When inside/outside exist, merges: MAX per pct, OR for booleans.
  */
-export function combineFrameSides(frames: FrameReport[]) {
+export function normalizeFrames(frames: FrameReport[]): NormalizedFrameRow[] {
   return (frames ?? [])
     .map((f) => {
       const frame_number = Number(f.frame_number ?? f.frameNumber);
       if (!frame_number || Number.isNaN(frame_number)) return null;
 
-      // Support snake_case + camelCase inputs
-      const honey_pct = num(f.honey_pct ?? f.honeyPercent);
-      const brood_pct = num(f.brood_pct ?? f.broodPercent);
-      const pollen_pct = num(f.pollen_pct ?? f.pollenPercent);
+      const o = (f.outside ?? {}) as Record<string, unknown>;
+      const i = (f.inside ?? {}) as Record<string, unknown>;
+      const hasSides = Object.keys(o).length > 0 || Object.keys(i).length > 0;
 
-      // If API says empty:true treat as 100% empty
-      const empty_pct = num(f.empty_pct ?? f.emptyPercent ?? (f.empty === true ? 100 : 0));
+      // Support flat (snake_case/camelCase) OR inside/outside structure
+      const sidePct = (side: Record<string, unknown>, key: string, camel: string) =>
+        num((side as any)[key] ?? (side as any)[camel]);
+      const sideEmpty = (side: Record<string, unknown>) =>
+        num((side as any).empty_pct ?? (side as any).emptyPercent ?? ((side as any).empty === true ? 100 : 0));
+      let honey_pct: number;
+      let brood_pct: number;
+      let pollen_pct: number;
+      let empty_pct: number;
+      if (hasSides) {
+        const oh = sidePct(o, "honey_pct", "honeyPercent");
+        const ih = sidePct(i, "honey_pct", "honeyPercent");
+        const ob = sidePct(o, "brood_pct", "broodPercent");
+        const ib = sidePct(i, "brood_pct", "broodPercent");
+        const op = sidePct(o, "pollen_pct", "pollenPercent");
+        const ip = sidePct(i, "pollen_pct", "pollenPercent");
+        const oe = sideEmpty(o);
+        const ie = sideEmpty(i);
+        honey_pct = Math.max(oh, ih) || num(f.honey_pct ?? f.honeyPercent);
+        brood_pct = Math.max(ob, ib) || num(f.brood_pct ?? f.broodPercent);
+        pollen_pct = Math.max(op, ip) || num(f.pollen_pct ?? f.pollenPercent);
+        empty_pct = Math.max(oe, ie) || num(f.empty_pct ?? f.emptyPercent ?? (f.empty === true ? 100 : 0));
+      } else {
+        honey_pct = num(f.honey_pct ?? f.honeyPercent);
+        brood_pct = num(f.brood_pct ?? f.broodPercent);
+        pollen_pct = num(f.pollen_pct ?? f.pollenPercent);
+        empty_pct = num(f.empty_pct ?? f.emptyPercent ?? (f.empty === true ? 100 : 0));
+      }
 
-      const eggs = bool(f.eggs ?? f.eggsPresent);
-      const larvae = bool(f.larvae ?? f.larvaePresent);
-      const drone = bool(f.drone ?? f.droneBrood);
-      const queen_cells = bool(f.queen_cells ?? f.queenCells);
+      const eggs = bool(f.eggs ?? f.eggsPresent ?? o.eggs ?? i.eggs);
+      const larvae = bool(f.larvae ?? f.larvaePresent ?? o.larvae ?? i.larvae);
+      const drone = bool(f.drone ?? f.droneBrood ?? o.drone ?? i.drone);
+      const queen_cells = bool(f.queen_cells ?? f.queenCells ?? o.queen_cells ?? i.queen_cells);
 
-      const notes = f.notes ?? "";
+      const notes = String(f.notes ?? o.notes ?? i.notes ?? "");
 
       return {
         frame_number,
@@ -84,18 +130,7 @@ export function combineFrameSides(frames: FrameReport[]) {
         notes,
       };
     })
-    .filter(Boolean) as Array<{
-    frame_number: number;
-    honey_pct: number;
-    brood_pct: number;
-    pollen_pct: number;
-    empty_pct: number;
-    eggs: boolean;
-    larvae: boolean;
-    drone: boolean;
-    queen_cells: boolean;
-    notes: string;
-  }>;
+    .filter(Boolean) as NormalizedFrameRow[];
 }
 
 function num(v: any): number {
@@ -117,7 +152,7 @@ function Bar({ value }: { value: number }) {
 }
 
 export function FrameDataTable({ frames }: { frames: FrameReport[] }) {
-  const rows = combineFrameSides(frames ?? []);
+  const rows = normalizeFrames(frames ?? []);
 
   if (!rows.length) {
     return (
