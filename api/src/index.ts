@@ -441,5 +441,113 @@ app.post("/extract", async (req, res) => {
   }
 });
 
+/**
+ * ---------------------------
+ * Inspections
+ * ---------------------------
+ */
+
+app.get("/version", (_req, res) => {
+  res.json({ version: "1.0.0" });
+});
+
+const CreateInspectionSchema = z.object({
+  hiveId: z.string().min(1),
+  recordedAtLocal: z.string(),
+  transcriptText: z.string(),
+  extract: z.any(),
+});
+
+app.post("/inspections", async (req, res) => {
+  const parsed = CreateInspectionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_input", details: parsed.error.flatten() });
+  }
+
+  const { hiveId, recordedAtLocal, transcriptText, extract } = parsed.data;
+
+  try {
+    const extractJson =
+      typeof extract === "object" && extract !== null
+        ? JSON.stringify(extract)
+        : typeof extract === "string"
+          ? extract
+          : "{}";
+
+    const result = await pool.query(
+      `insert into inspections (hive_id, recorded_at_local, transcript_text, extract_json)
+       values ($1, $2, $3, $4::jsonb)
+       returning id`,
+      [hiveId, recordedAtLocal || null, transcriptText || null, extractJson]
+    );
+
+    const row = result.rows[0];
+    return res.status(201).json({
+      inspectionId: row?.id ?? null,
+    });
+  } catch (err: any) {
+    console.error("create_inspection_failed", {
+      message: err?.message,
+      stack: err?.stack,
+      code: (err as any)?.code,
+    });
+    return res.status(500).json({ error: "create_inspection_failed", message: err?.message });
+  }
+});
+
+app.get("/inspections/:id", async (req, res) => {
+  const id = req.params.id;
+  if (!id) {
+    return res.status(400).json({ error: "missing_inspection_id" });
+  }
+
+  try {
+    const result = await pool.query(
+      `select id, hive_id, recorded_at_local, status, transcript_text, extract_json, created_at
+       from inspections where id = $1`,
+      [id]
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    // extract_json → extract: ensure object (parse string, null → {})
+    let extract: Record<string, unknown> = {};
+    if (row.extract_json != null) {
+      if (typeof row.extract_json === "string") {
+        try {
+          extract = JSON.parse(row.extract_json) as Record<string, unknown>;
+        } catch {
+          extract = {};
+        }
+      } else if (typeof row.extract_json === "object") {
+        extract = row.extract_json as Record<string, unknown>;
+      }
+    }
+
+    const inspection = {
+      id: row.id,
+      hiveId: row.hive_id,
+      recordedAtLocal: row.recorded_at_local ?? null,
+      status: row.status ?? "completed",
+      transcriptText: row.transcript_text ?? "",
+      extract,
+      createdAt: row.created_at,
+    };
+
+    return res.json({ inspection });
+  } catch (err: any) {
+    const pgErr = err as { code?: string; message?: string; stack?: string };
+    console.error("get_inspection_failed", {
+      message: pgErr?.message,
+      code: pgErr?.code,
+      stack: pgErr?.stack,
+    });
+    return res.status(500).json({ error: "get_inspection_failed" });
+  }
+});
+
 const port = process.env.PORT ? Number(process.env.PORT) : 3001;
 app.listen(port, () => console.log(`API running on port ${port}`));

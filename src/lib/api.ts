@@ -145,9 +145,29 @@ export async function createInspection(
 }
 
 // Fetch a single inspection by ID (refresh-safe InspectionReport)
-// Returns a UI-friendly shape (camelCase + extract)
+// API returns camelCase: { inspection: { id, hiveId, recordedAtLocal, status, transcriptText, extract, createdAt } }
 export async function getInspection(inspectionId: string): Promise<Inspection> {
   const data = await request(`/inspections/${encodeURIComponent(inspectionId)}`);
-  const row = data?.inspection as ApiInspectionRow;
-  return normalizeInspection(row);
+  const insp = data?.inspection as {
+    id: string;
+    hiveId?: string;
+    hive_id?: string;
+    recordedAtLocal?: string | null;
+    recorded_at_local?: string | null;
+    transcriptText?: string;
+    transcript_text?: string;
+    extract?: unknown;
+    extract_json?: unknown;
+    createdAt?: string;
+    created_at?: string;
+  };
+  if (!insp) return { id: "", hiveId: "", recordedAtLocal: null, createdAt: "", transcriptText: "", extract: {} };
+  return {
+    id: insp.id,
+    hiveId: insp.hiveId ?? insp.hive_id ?? "",
+    recordedAtLocal: insp.recordedAtLocal ?? insp.recorded_at_local ?? null,
+    createdAt: insp.createdAt ?? insp.created_at ?? "",
+    transcriptText: insp.transcriptText ?? insp.transcript_text ?? "",
+    extract: insp.extract ?? insp.extract_json ?? {},
+  };
 }
