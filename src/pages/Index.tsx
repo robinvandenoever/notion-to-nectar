@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+<div className="text-xs text-muted-foreground">
+  BUILD_MARKER: b36feb0
+</div>
+
 import { AppLayout } from "@/components/AppLayout";
 import { HiveCard } from "@/components/HiveCard";
 import { Badge } from "@/components/ui/badge";
