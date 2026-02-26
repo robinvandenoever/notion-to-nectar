@@ -204,35 +204,14 @@ const HiveDetail = () => {
                 const summary = getSummary(inspection.extract);
                 return (
                   <div key={inspection.id} className="rounded-xl border bg-card p-3 shadow-sm">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start">
+                    {/* Top row: date left, View report right */}
+                    <div className="flex items-start justify-between mb-3">
                       <div>
                         <p className="text-sm font-medium text-foreground">{dateLabel}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {inspection.recordedAtLocal ? "Recorded date" : "Created date"}
                         </p>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-lg bg-muted/60 px-2 py-1.5">
-                          <p className="text-[11px] text-muted-foreground">🍯 Honey</p>
-                          <p className="text-sm font-semibold text-foreground">{summary.honey.toFixed(1)}</p>
-                        </div>
-                        <div className="rounded-lg bg-muted/60 px-2 py-1.5">
-                          <p className="text-[11px] text-muted-foreground">🐣 Brood</p>
-                          <p className="text-sm font-semibold text-foreground">{summary.brood.toFixed(1)}</p>
-                        </div>
-                        <div className="rounded-lg bg-muted/60 px-2 py-1.5">
-                          <p className="text-[11px] text-muted-foreground">🌼 Pollen</p>
-                          <p className="text-sm font-semibold text-foreground">{summary.pollen.toFixed(1)}</p>
-                        </div>
-                        <div className="rounded-lg bg-muted/60 px-2 py-1.5">
-                          <p className="text-[11px] text-muted-foreground">🖼️ Frames</p>
-                          <p className="text-sm font-semibold text-foreground">{summary.frames}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3">
                       <Button
                         size="sm"
                         variant="outline"
@@ -240,6 +219,26 @@ const HiveDetail = () => {
                       >
                         View report
                       </Button>
+                    </div>
+
+                    {/* Bottom row: 4 stats spread across the full card width */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="rounded-lg bg-muted/60 px-2 py-1.5">
+                        <p className="text-[11px] text-muted-foreground">🍯 Honey</p>
+                        <p className="text-sm font-semibold text-foreground">{summary.honey.toFixed(1)}</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/60 px-2 py-1.5">
+                        <p className="text-[11px] text-muted-foreground">🐣 Brood</p>
+                        <p className="text-sm font-semibold text-foreground">{summary.brood.toFixed(1)}</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/60 px-2 py-1.5">
+                        <p className="text-[11px] text-muted-foreground">🌼 Pollen</p>
+                        <p className="text-sm font-semibold text-foreground">{summary.pollen.toFixed(1)}</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/60 px-2 py-1.5">
+                        <p className="text-[11px] text-muted-foreground">🖼️ Frames</p>
+                        <p className="text-sm font-semibold text-foreground">{summary.frames}</p>
+                      </div>
                     </div>
                   </div>
                 );
