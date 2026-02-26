@@ -32,7 +32,7 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 app.get("/hives", async (_req, res) => {
   const result = await pool.query(
-    "select id, name, apiary_name, created_at from hives order by created_at desc"
+    "select id, name, apiary_name, frame_count, created_at from hives order by created_at desc"
   );
   res.json({ hives: result.rows });
 });
@@ -40,6 +40,7 @@ app.get("/hives", async (_req, res) => {
 const CreateHiveSchema = z.object({
   name: z.string().min(1),
   apiaryName: z.string().optional(),
+  frameCount: z.number().int().min(1).optional(),
 });
 
 app.post("/hives", async (req, res) => {
@@ -48,11 +49,11 @@ app.post("/hives", async (req, res) => {
     return res.status(400).json({ error: "invalid_input", details: parsed.error.flatten() });
   }
 
-  const { name, apiaryName } = parsed.data;
+  const { name, apiaryName, frameCount } = parsed.data;
 
   const result = await pool.query(
-    "insert into hives (name, apiary_name) values ($1, $2) returning id, name, apiary_name, created_at",
-    [name, apiaryName ?? null]
+    "insert into hives (name, apiary_name, frame_count) values ($1, $2, $3) returning id, name, apiary_name, frame_count, created_at",
+    [name, apiaryName ?? null, frameCount ?? 10]
   );
 
   res.status(201).json({ hive: result.rows[0] });

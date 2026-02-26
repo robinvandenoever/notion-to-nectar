@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { createHive } from "@/lib/api";
 
@@ -30,13 +31,14 @@ export default function NewHive() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !finalApiary) return;
+    if (!name.trim() || !finalApiary || Number(frameCount) > 100) return;
 
     try {
       // Persist to DB
       await createHive({
         name: name.trim(),
         apiaryName: finalApiary,
+        frameCount: Number(frameCount),
       });
 
       // Keep store behavior unchanged (it generates id internally)
@@ -106,24 +108,23 @@ export default function NewHive() {
 
         <div className="space-y-2">
           <Label htmlFor="frames">Frame Count</Label>
-          <Select value={frameCount} onValueChange={setFrameCount}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[6, 8, 10, 12, 14, 16, 20].map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n} frames
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Input
+            id="frames"
+            type="number"
+            min={1}
+            value={frameCount}
+            onChange={(e) => setFrameCount(e.target.value)}
+            className={cn(Number(frameCount) > 100 && "border-destructive focus-visible:ring-destructive")}
+          />
+          {Number(frameCount) > 100 && (
+            <p className="text-sm text-destructive">Frame count cannot exceed 100.</p>
+          )}
         </div>
 
         <Button
           type="submit"
           className="w-full gradient-honey text-primary-foreground shadow-honey"
-          disabled={!name.trim() || !finalApiary}
+          disabled={!name.trim() || !finalApiary || Number(frameCount) > 100}
         >
           Create Hive
         </Button>

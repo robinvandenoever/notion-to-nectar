@@ -42,7 +42,7 @@ export default function Index() {
           id: r.id,
           name: r.name,
           apiary: r.apiary_name ?? "Unknown",
-          frameCount: 10, // default for now
+          frameCount: r.frame_count ?? 10,
           status: "new",
         }));
 

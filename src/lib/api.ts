@@ -6,6 +6,7 @@ export type ApiHiveRow = {
   id: string;
   name: string;
   apiary_name: string | null;
+  frame_count: number;
   created_at: string;
 };
 export type Hive = ApiHiveRow;
@@ -13,6 +14,7 @@ export type Hive = ApiHiveRow;
 export type CreateHiveInput = {
   name: string;
   apiaryName?: string;
+  frameCount?: number;
 };
 
 export type CreateInspectionInput = {
