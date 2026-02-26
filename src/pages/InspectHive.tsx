@@ -158,6 +158,21 @@ const InspectHive = () => {
         </div>
 
         <VoiceRecorder onRecordingComplete={handleRecordingComplete} isProcessing={isProcessing} />
+
+        <div className="mt-12 bg-card rounded-xl p-5 shadow-card w-full max-w-sm">
+          <h4 className="font-serif font-semibold text-foreground mb-2">💡 Inspection tips</h4>
+          <ul className="space-y-1.5 text-sm text-muted-foreground">
+            <li>
+              • Say frame numbers: <span className="text-foreground">"Frame 1 is..."</span>
+            </li>
+            <li>
+              • Use percentages: <span className="text-foreground">"about 60% honey"</span>
+            </li>
+            <li>
+              • Queen status: <span className="text-foreground">"EOQ" / "queen not seen"</span>
+            </li>
+          </ul>
+        </div>
       </div>
     </AppLayout>
   );
