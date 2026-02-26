@@ -5,9 +5,21 @@ import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
-import { getHives, getInspectionsByHive, type Hive, type InspectionListItem } from "@/lib/api";
+import { getHives, getInspectionsByHive, deleteHive, type Hive, type InspectionListItem } from "@/lib/api";
+import { useAppStore } from "@/lib/store";
 import { normalizeFrames, type FrameReport } from "@/components/FrameDataTable";
 
 function toNum(v: unknown): number {
@@ -61,8 +73,10 @@ const HiveDetail = () => {
 
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { deleteHive: deleteHiveFromStore } = useAppStore();
 
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [hives, setHives] = useState<Hive[]>([]);
   const [inspections, setInspections] = useState<InspectionListItem[]>([]);
 
@@ -119,6 +133,26 @@ const HiveDetail = () => {
     return hives.find((h) => h.id === hiveId);
   }, [hives, hiveId]);
 
+  const handleDelete = async () => {
+    if (!hiveId) return;
+    try {
+      setDeleting(true);
+      await deleteHive(hiveId);
+      deleteHiveFromStore(hiveId);
+      toast({ title: "Hive deleted", description: "The hive and all its inspections have been removed." });
+      navigate("/");
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Failed to delete hive",
+        description: err?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!hiveId) {
     return (
       <AppLayout title="Hive Not Found" showBack>
@@ -172,7 +206,40 @@ const HiveDetail = () => {
                 Created: {new Date(hive.created_at).toLocaleString()}
               </p>
             </div>
-            <Badge variant="secondary">API-backed</Badge>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/edit-hive/${hive.id}`)}
+              >
+                Edit
+              </Button>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={deleting}>
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this hive?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete <strong>{hive.name}</strong> and all of its inspection records. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={handleDelete}
+                    >
+                      Yes, delete hive
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </Card>
 

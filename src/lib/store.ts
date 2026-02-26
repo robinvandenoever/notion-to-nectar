@@ -38,6 +38,8 @@ type AppStore = {
   setHives: (hives: Hive[]) => void;
 
   addHive: (hive: Omit<Hive, "id">) => void;
+  updateHive: (id: string, updates: Partial<Omit<Hive, "id">>) => void;
+  deleteHive: (id: string) => void;
 
   addInspection: (inspection: Inspection) => void;
 
@@ -64,6 +66,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
         },
         ...state.hives,
       ],
+    })),
+
+  updateHive: (id, updates) =>
+    set((state) => ({
+      hives: state.hives.map((h) => (h.id === id ? { ...h, ...updates } : h)),
+    })),
+
+  deleteHive: (id) =>
+    set((state) => ({
+      hives: state.hives.filter((h) => h.id !== id),
+      inspections: state.inspections.filter((i) => i.hiveId !== id),
     })),
 
   addInspection: (inspection) =>

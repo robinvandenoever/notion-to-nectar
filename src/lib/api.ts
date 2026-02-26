@@ -17,6 +17,12 @@ export type CreateHiveInput = {
   frameCount?: number;
 };
 
+export type UpdateHiveInput = {
+  name?: string;
+  apiaryName?: string;
+  frameCount?: number;
+};
+
 export type CreateInspectionInput = {
   hiveId: string;
   recordedAtLocal: string; // YYYY-MM-DD
@@ -116,6 +122,19 @@ export async function createHive(input: CreateHiveInput): Promise<ApiHiveRow> {
     body: JSON.stringify(input),
   });
   return data?.hive as ApiHiveRow;
+}
+
+export async function updateHive(id: string, input: UpdateHiveInput): Promise<ApiHiveRow> {
+  const data = await request(`/hives/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return data?.hive as ApiHiveRow;
+}
+
+export async function deleteHive(id: string): Promise<void> {
+  await request(`/hives/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 // -------------------

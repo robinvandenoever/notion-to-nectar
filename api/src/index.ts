@@ -59,6 +59,64 @@ app.post("/hives", async (req, res) => {
   res.status(201).json({ hive: result.rows[0] });
 });
 
+const UpdateHiveSchema = z.object({
+  name: z.string().min(1).optional(),
+  apiaryName: z.string().optional(),
+  frameCount: z.number().int().min(1).optional(),
+});
+
+app.patch("/hives/:id", async (req, res) => {
+  const id = req.params.id;
+  if (!z.string().uuid().safeParse(id).success) {
+    return res.status(400).json({ error: "invalid_id" });
+  }
+
+  const parsed = UpdateHiveSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_input", details: parsed.error.flatten() });
+  }
+
+  const { name, apiaryName, frameCount } = parsed.data;
+
+  const updates: string[] = [];
+  const values: unknown[] = [];
+
+  if (name !== undefined) { updates.push(`name = $${values.length + 1}`); values.push(name); }
+  if (apiaryName !== undefined) { updates.push(`apiary_name = $${values.length + 1}`); values.push(apiaryName); }
+  if (frameCount !== undefined) { updates.push(`frame_count = $${values.length + 1}`); values.push(frameCount); }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: "no_fields_to_update" });
+  }
+
+  values.push(id);
+  const result = await pool.query(
+    `update hives set ${updates.join(", ")} where id = $${values.length} returning id, name, apiary_name, frame_count, created_at`,
+    values
+  );
+
+  if (!result.rows.length) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  res.json({ hive: result.rows[0] });
+});
+
+app.delete("/hives/:id", async (req, res) => {
+  const id = req.params.id;
+  if (!z.string().uuid().safeParse(id).success) {
+    return res.status(400).json({ error: "invalid_id" });
+  }
+
+  const result = await pool.query("delete from hives where id = $1 returning id", [id]);
+
+  if (!result.rows.length) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  res.json({ deleted: true });
+});
+
 /**
  * ---------------------------
  * 1) Transcription (audio -> text)
