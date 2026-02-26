@@ -137,6 +137,10 @@ export async function deleteHive(id: string): Promise<void> {
   await request(`/hives/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export async function deleteInspection(id: string): Promise<void> {
+  await request(`/inspections/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 // -------------------
 // Transcribe + Extract
 // -------------------

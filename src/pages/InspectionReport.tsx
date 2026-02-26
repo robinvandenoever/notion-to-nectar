@@ -5,9 +5,20 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 import { FrameDataTable, type FrameReport, type NormalizedFrameRow, normalizeFrames } from "@/components/FrameDataTable";
-import { getInspection, type Inspection } from "@/lib/api";
+import { getInspection, deleteInspection, type Inspection } from "@/lib/api";
 
 type ExtractResponse = {
   frames?: FrameReport[];
@@ -31,6 +42,7 @@ export default function InspectionReport() {
   const [loading, setLoading] = useState(true);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +86,20 @@ export default function InspectionReport() {
 
   const rawFrames = extract?.frames ?? [];
   const normalized = useMemo(() => normalizeFrames(rawFrames), [rawFrames]);
+
+  const handleDelete = async () => {
+    if (!inspectionId || !inspection) return;
+    try {
+      setDeleting(true);
+      await deleteInspection(inspectionId);
+      navigate(`/hive/${inspection.hiveId}`);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message ?? "Failed to delete inspection.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const honeyEquiv = useMemo(() => sumPct(normalized, "honey_pct") / 100, [normalized]);
   const broodEquiv = useMemo(() => sumPct(normalized, "brood_pct") / 100, [normalized]);
@@ -199,6 +225,39 @@ export default function InspectionReport() {
         <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
           Back to apiaries
         </Button>
+
+        {/* Delete — tucked away below a divider, matching the hive edit pattern */}
+        <div className="mt-6 pt-6 border-t border-border/50">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                disabled={deleting}
+              >
+                {deleting ? "Deleting…" : "Delete this inspection"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete this inspection?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Removing this inspection report is permanent and cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleDelete}
+                >
+                  Yes, delete inspection
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
     </AppLayout>
   );

@@ -554,6 +554,21 @@ app.post("/inspections", async (req, res) => {
   }
 });
 
+app.delete("/inspections/:id", async (req, res) => {
+  const id = req.params.id;
+  if (!z.string().uuid().safeParse(id).success) {
+    return res.status(400).json({ error: "invalid_id" });
+  }
+
+  const result = await pool.query("delete from inspections where id = $1 returning id", [id]);
+
+  if (!result.rows.length) {
+    return res.status(404).json({ error: "not_found" });
+  }
+
+  res.json({ deleted: true });
+});
+
 app.get("/inspections/:id", async (req, res) => {
   const id = req.params.id;
   if (!id) {
