@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppLayout } from "@/components/AppLayout";
@@ -6,23 +6,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
-import { getHives, updateHive } from "@/lib/api";
+import { getHives, updateHive, deleteHive } from "@/lib/api";
 
 export default function EditHive() {
   const { hiveId } = useParams<{ hiveId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const { hives, setHives, updateHive: updateHiveInStore } = useAppStore();
+  const { hives, setHives, updateHive: updateHiveInStore, deleteHive: deleteHiveFromStore } = useAppStore();
 
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [name, setName] = useState("");
   const [apiary, setApiary] = useState("");
   const [newApiary, setNewApiary] = useState("");
   const [frameCount, setFrameCount] = useState("10");
+
+  // Guard: only populate the form once, the first time the hive becomes available.
+  // Without this, hives.find() returns a new object reference on every render,
+  // which re-triggers the effect and overwrites whatever the user typed.
+  const hasPopulated = useRef(false);
 
   // Load hives from API if store is empty (e.g. direct page load)
   useEffect(() => {
@@ -54,10 +72,11 @@ export default function EditHive() {
     })();
   }, [hives.length, setHives, toast]);
 
-  // Pre-populate form when hive is found
   const hive = hives.find((h) => h.id === hiveId);
+
   useEffect(() => {
-    if (!hive) return;
+    if (!hive || hasPopulated.current) return;
+    hasPopulated.current = true;
     setName(hive.name);
     setApiary(hive.apiary);
     setFrameCount(String(hive.frameCount));
@@ -72,6 +91,7 @@ export default function EditHive() {
     if (!hiveId || !name.trim() || !finalApiary || Number(frameCount) > 100) return;
 
     try {
+      setSaving(true);
       await updateHive(hiveId, {
         name: name.trim(),
         apiaryName: finalApiary,
@@ -93,6 +113,28 @@ export default function EditHive() {
         description: err?.message ?? "Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!hiveId) return;
+    try {
+      setDeleting(true);
+      await deleteHive(hiveId);
+      deleteHiveFromStore(hiveId);
+      toast({ title: "Hive deleted", description: "The hive and all its inspections have been removed." });
+      navigate("/");
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Failed to delete hive",
+        description: err?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -171,11 +213,44 @@ export default function EditHive() {
         <Button
           type="submit"
           className="w-full gradient-honey text-primary-foreground shadow-honey"
-          disabled={!name.trim() || !finalApiary || Number(frameCount) > 100}
+          disabled={saving || !name.trim() || !finalApiary || Number(frameCount) > 100}
         >
-          Save Changes
+          {saving ? "Saving…" : "Save Changes"}
         </Button>
       </form>
+
+      {/* Delete — tucked away below a divider */}
+      <div className="max-w-sm mx-auto mt-10 pt-6 border-t border-border/50">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              disabled={deleting}
+            >
+              {deleting ? "Deleting…" : "Delete this hive"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this hive?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete <strong>{hive.name}</strong> and all of its inspection records. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleDelete}
+              >
+                Yes, delete hive
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </AppLayout>
   );
 }
