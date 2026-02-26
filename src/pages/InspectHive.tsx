@@ -1,21 +1,59 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppLayout } from "@/components/AppLayout";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 
-import { transcribeAudio, extractFromTranscript, createInspection } from "@/lib/api";
+import { transcribeAudio, extractFromTranscript, createInspection, getHives } from "@/lib/api";
 
 const InspectHive = () => {
   const { hiveId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { hives } = useAppStore();
+  const { hives, setHives } = useAppStore();
+
+  const [loadingHive, setLoadingHive] = useState(hives.length === 0);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Fallback fetch: if the store is empty (e.g. direct URL load), pull hives from the API.
+  // Same pattern as EditHive.tsx.
+  useEffect(() => {
+    if (hives.length > 0) return;
+    (async () => {
+      try {
+        const rows = await getHives();
+        setHives(
+          rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            apiary: r.apiary_name ?? "Unknown",
+            frameCount: r.frame_count ?? 10,
+            status: "new" as const,
+          }))
+        );
+      } catch (err: any) {
+        toast({
+          title: "Failed to load hive",
+          description: err?.message ?? "Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingHive(false);
+      }
+    })();
+  }, [hives.length, setHives, toast]);
 
   const hive = hives.find((h) => h.id === hiveId);
-  const [isProcessing, setIsProcessing] = useState(false);
+
+  if (loadingHive) {
+    return (
+      <AppLayout title="Inspect" showBack>
+        <p className="text-muted-foreground">Loading…</p>
+      </AppLayout>
+    );
+  }
 
   if (!hive || !hiveId) {
     return (

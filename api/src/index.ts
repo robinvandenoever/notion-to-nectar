@@ -517,6 +517,49 @@ const CreateInspectionSchema = z.object({
   extract: z.any(),
 });
 
+app.get("/inspections", async (req, res) => {
+  const hiveId = typeof req.query.hiveId === "string" ? req.query.hiveId : undefined;
+
+  if (!hiveId) {
+    return res.status(400).json({ error: "missing_hiveId" });
+  }
+
+  if (!z.string().uuid().safeParse(hiveId).success) {
+    return res.status(400).json({ error: "invalid_hiveId" });
+  }
+
+  try {
+    const result = await pool.query(
+      `select id, hive_id, recorded_at_local, status, transcript_text, extract_json, created_at
+       from inspections where hive_id = $1 order by created_at desc`,
+      [hiveId]
+    );
+
+    const inspections = result.rows.map((row) => {
+      let extract: Record<string, unknown> = {};
+      if (row.extract_json != null) {
+        extract = typeof row.extract_json === "string"
+          ? (() => { try { return JSON.parse(row.extract_json); } catch { return {}; } })()
+          : row.extract_json;
+      }
+      return {
+        id: row.id,
+        hiveId: row.hive_id,
+        recordedAtLocal: row.recorded_at_local,
+        status: row.status ?? "ready",
+        transcriptText: row.transcript_text ?? "",
+        extract,
+        createdAt: row.created_at,
+      };
+    });
+
+    return res.json({ inspections });
+  } catch (err: any) {
+    console.error("list_inspections_failed", err);
+    return res.status(500).json({ error: "list_inspections_failed" });
+  }
+});
+
 app.post("/inspections", async (req, res) => {
   const parsed = CreateInspectionSchema.safeParse(req.body);
   if (!parsed.success) {
