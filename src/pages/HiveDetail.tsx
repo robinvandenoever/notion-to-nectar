@@ -4,7 +4,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 import { getHives, getInspectionsByHive, type Hive, type InspectionListItem } from "@/lib/api";
@@ -198,21 +197,16 @@ const HiveDetail = () => {
           ) : (
             <div className="space-y-3">
               {inspections.map((inspection) => {
+                // Slice to "YYYY-MM-DD" to strip any time/timezone suffix the DB may include
                 const dateLabel = inspection.recordedAtLocal
-                  ? inspection.recordedAtLocal
+                  ? inspection.recordedAtLocal.slice(0, 10)
                   : new Date(inspection.createdAt).toLocaleDateString();
-                const snippet = (inspection.transcriptText ?? "").trim();
                 const summary = getSummary(inspection.extract);
                 return (
                   <div key={inspection.id} className="rounded-xl border bg-card p-3 shadow-sm">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-foreground">{dateLabel}</p>
-                          <Badge variant="secondary" className="capitalize">
-                            {inspection.status || "ready"}
-                          </Badge>
-                        </div>
+                        <p className="text-sm font-medium text-foreground">{dateLabel}</p>
                         <p className="text-xs text-muted-foreground mt-1">
                           {inspection.recordedAtLocal ? "Recorded date" : "Created date"}
                         </p>
@@ -238,9 +232,6 @@ const HiveDetail = () => {
                       </div>
                     </div>
 
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {snippet ? `${snippet.slice(0, 120)}${snippet.length > 120 ? "..." : ""}` : "No transcript text"}
-                    </p>
                     <div className="mt-3">
                       <Button
                         size="sm"

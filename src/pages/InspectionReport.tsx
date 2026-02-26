@@ -148,16 +148,10 @@ export default function InspectionReport() {
     );
   }
 
-  // Try to show hive name/apiary if you later enrich the inspection response.
-  // For now, show IDs to avoid lying to the user.
-  const titleLine = `Inspection ${inspection.id.slice(0, 8)}`;
-
   return (
     <AppLayout title="Inspection Report" showBack>
       <div className="space-y-6 animate-fade-in">
         <div className="text-center">
-          <p className="text-sm text-muted-foreground mb-1">{titleLine}</p>
-
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
             <Badge variant="secondary">{normalized.length} frames</Badge>
             {extract.queen?.mentioned ? (
@@ -225,6 +219,11 @@ export default function InspectionReport() {
         <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
           Back to apiaries
         </Button>
+
+        {/* Inspection ID — shown at the bottom for reference, out of the way */}
+        <p className="text-center text-xs text-muted-foreground">
+          Inspection {inspection.id.slice(0, 8)}
+        </p>
 
         {/* Delete — tucked away below a divider, matching the hive edit pattern */}
         <div className="mt-6 pt-6 border-t border-border/50">

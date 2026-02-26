@@ -2,19 +2,18 @@ import { Hive } from '@/lib/data';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { Bug, AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
+import { Bug, AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react';
 
 const statusConfig = {
   healthy: { label: 'Healthy', icon: CheckCircle2, className: 'bg-success text-success-foreground' },
   warning: { label: 'Warning', icon: AlertTriangle, className: 'bg-warning text-warning-foreground' },
   critical: { label: 'Critical', icon: Bug, className: 'bg-destructive text-destructive-foreground' },
-  new: { label: 'New', icon: Plus, className: 'bg-secondary text-secondary-foreground' },
+  new: null,
 };
 
 export function HiveCard({ hive }: { hive: Hive }) {
   const navigate = useNavigate();
   const status = statusConfig[hive.status];
-  const StatusIcon = status.icon;
 
   return (
     <Card
@@ -27,10 +26,14 @@ export function HiveCard({ hive }: { hive: Hive }) {
             <h3 className="font-serif font-semibold text-lg text-foreground">{hive.name}</h3>
             <p className="text-sm text-muted-foreground">{hive.apiary}</p>
           </div>
-          <Badge className={`${status.className} gap-1 text-xs`}>
-            <StatusIcon className="w-3 h-3" />
-            {status.label}
-          </Badge>
+          {status ? (
+            <Badge className={`${status.className} gap-1 text-xs`}>
+              <status.icon className="w-3 h-3" />
+              {status.label}
+            </Badge>
+          ) : (
+            <ChevronRight className="w-5 h-5 text-muted-foreground/50 mt-0.5 flex-shrink-0" />
+          )}
         </div>
 
         <div className="flex items-center gap-4 text-sm text-muted-foreground">

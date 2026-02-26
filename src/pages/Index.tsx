@@ -70,11 +70,6 @@ export default function Index() {
 
   return (
     <AppLayout>
-      {/* Build marker (temporary) */}
-      <div className="mb-4 text-xs text-muted-foreground">
-        BUILD_MARKER: b36feb0
-      </div>
-
       <div className="mb-8 animate-fade-in">
         <h2 className="font-serif text-3xl font-bold text-foreground mb-1">
           Your Apiaries

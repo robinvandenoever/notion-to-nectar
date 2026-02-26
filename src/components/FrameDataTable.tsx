@@ -187,30 +187,30 @@ export function FrameDataTable({ frames }: { frames: FrameReport[] }) {
               <tr key={r.frame_number} className="border-b last:border-b-0">
                 <td className="py-3 pr-2 font-medium">{r.frame_number}</td>
 
-                <td className="py-3 pr-2 min-w-[120px]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-10 text-xs text-muted-foreground">{r.honey_pct}%</span>
+                <td className="py-3 pr-2 w-[90px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-8 text-xs text-muted-foreground shrink-0">{r.honey_pct}%</span>
                     <Bar value={r.honey_pct} />
                   </div>
                 </td>
 
-                <td className="py-3 pr-2 min-w-[120px]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-10 text-xs text-muted-foreground">{r.brood_pct}%</span>
+                <td className="py-3 pr-2 w-[90px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-8 text-xs text-muted-foreground shrink-0">{r.brood_pct}%</span>
                     <Bar value={r.brood_pct} />
                   </div>
                 </td>
 
-                <td className="py-3 pr-2 min-w-[120px]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-10 text-xs text-muted-foreground">{r.pollen_pct}%</span>
+                <td className="py-3 pr-2 w-[90px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-8 text-xs text-muted-foreground shrink-0">{r.pollen_pct}%</span>
                     <Bar value={r.pollen_pct} />
                   </div>
                 </td>
 
-                <td className="py-3 pr-2 min-w-[120px]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-10 text-xs text-muted-foreground">{r.empty_pct}%</span>
+                <td className="py-3 pr-2 w-[90px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-8 text-xs text-muted-foreground shrink-0">{r.empty_pct}%</span>
                     <Bar value={r.empty_pct} />
                   </div>
                 </td>
@@ -233,10 +233,6 @@ export function FrameDataTable({ frames }: { frames: FrameReport[] }) {
         </table>
       </div>
 
-      {/* Optional notes (collapsed feel) */}
-      <div className="mt-3 text-xs text-muted-foreground">
-        Showing {rows.length} frame rows.
-      </div>
     </Card>
   );
 }
