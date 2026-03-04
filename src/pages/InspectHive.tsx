@@ -84,9 +84,10 @@ const InspectHive = () => {
       }
 
       // 1) Transcribe
-      const transcriptText = await transcribeAudio(file);
+      const { transcriptText, utterances } = await transcribeAudio(file);
       if (import.meta.env.DEV) {
         console.log("[inspect] transcript length:", transcriptText?.length ?? 0);
+        console.log("[inspect] utterances:", utterances.length);
       }
       if (!transcriptText?.trim()) throw new Error("Transcription returned empty text.");
 

@@ -5,6 +5,8 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import { z } from "zod";
+import Anthropic from "@anthropic-ai/sdk";
+import { createClient as createDeepgram } from "@deepgram/sdk";
 import { getPool } from "./db.js";
 
 const app = express();
@@ -120,41 +122,35 @@ app.delete("/hives/:id", async (req, res) => {
 /**
  * ---------------------------
  * 1) Transcription (audio -> text)
- * Whisper is ASR (speech-to-text), not "semantic extraction".
  * ---------------------------
  */
 app.post("/transcribe", upload.single("file"), async (req, res) => {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: "OPENAI_API_KEY is not set" });
+    if (!process.env.DEEPGRAM_API_KEY) {
+      return res.status(500).json({ error: "server_missing_deepgram_key" });
     }
     if (!req.file) {
       return res.status(400).json({ error: "missing_file" });
     }
 
-    // Convert Buffer -> Uint8Array -> File for FormData
-    const bytes = new Uint8Array(req.file.buffer);
-    const file = new File([bytes], req.file.originalname || "inspection.m4a", {
-      type: req.file.mimetype || "application/octet-stream",
-    });
+    const deepgram = createDeepgram(process.env.DEEPGRAM_API_KEY);
+    const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+      req.file.buffer,
+      { model: "nova-2", mimetype: req.file.mimetype || "audio/webm", utterances: true }
+    );
 
-    const form = new FormData();
-    form.append("model", "whisper-1");
-    form.append("file", file);
+    if (error) throw error;
 
-    const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: form,
-    });
+    const transcriptText =
+      result?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? "";
 
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => "");
-      return res.status(500).json({ error: "transcription_failed", details: errText });
-    }
+    const utterances = (result?.results?.utterances ?? []).map((u: any) => ({
+      start: u.start,
+      end: u.end,
+      transcript: u.transcript,
+    }));
 
-    const data = (await resp.json()) as { text?: string };
-    res.json({ transcriptText: data.text ?? "" });
+    res.json({ transcriptText, utterances });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "transcription_failed" });
@@ -345,50 +341,15 @@ function extractWithRegex(transcriptText: string) {
 }
 
 /**
- * Helper: Extract text content from the OpenAI Responses API JSON.
- * The Responses API returns an "output" array with message items.
- * We robustly gather any text parts we can find.
- */
-function getResponseTextFromResponsesApi(data: any): string {
-  // Some SDKs/tools may include output_text; use it if present.
-  if (typeof data?.output_text === "string" && data.output_text.trim()) {
-    return data.output_text;
-  }
-
-  const outputs = Array.isArray(data?.output) ? data.output : [];
-  const chunks: string[] = [];
-
-  for (const item of outputs) {
-    // Typical: item.type === "message" and item.content is an array
-    const contentArr = Array.isArray(item?.content) ? item.content : [];
-    for (const c of contentArr) {
-      // Known shapes seen in Responses API:
-      // { type: "output_text", text: "..." }
-      // { type: "text", text: "..." }
-      if (typeof c?.text === "string" && c.text.trim()) {
-        chunks.push(c.text);
-      }
-      // Some variants:
-      if (typeof c?.content === "string" && c.content.trim()) {
-        chunks.push(c.content);
-      }
-    }
-  }
-
-  return chunks.join("\n").trim();
-}
-
-/**
  * LLM extraction: transcript -> strict JSON -> validate -> return
  */
 async function extractWithLLM(transcriptText: string, frameCount?: number) {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set");
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
 
-  // Start cheap; once working, we can bump models.
-  const model = process.env.EXTRACT_MODEL || "gpt-4o-mini";
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const system = `
-Return ONLY valid JSON.
+You must respond with only raw JSON. Do not use markdown fences, do not include any explanation, just the raw JSON object.
 
 Goal: extract a beekeeping inspection into frames with inside/outside structure.
 
@@ -428,49 +389,33 @@ Totals:
 
 Questions:
 - If queen/EOQ not mentioned, ask: "Did you see the queen (EOQ) or evidence of a laying queen (fresh eggs)?"
-`;
+`.trim();
 
-  const user = `Frame count (if known): ${frameCount ?? "unknown"}
-
-Transcript:
-${transcriptText}
-`;
-
-  const resp = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      input: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      // Request JSON-only output (but we still parse robustly)
-      text: { format: { type: "json_object" } },
-    }),
+  const completion = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 2048,
+    temperature: 0,
+    system,
+    messages: [
+      {
+        role: "user",
+        content: `Frame count (if known): ${frameCount ?? "unknown"}\n\nTranscript:\n${transcriptText}`,
+      },
+    ],
   });
 
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => "");
-    throw new Error(`LLM extract failed (${resp.status}): ${errText}`);
-  }
-
-  const data = await resp.json();
-
-  const jsonText = getResponseTextFromResponsesApi(data);
-  if (!jsonText) {
-    throw new Error("LLM extract returned empty text");
-  }
+  const raw =
+    completion.content
+      .filter((b) => b.type === "text")
+      .map((b) => (b as any).text as string)
+      .join("") || "{}";
+  const cleaned = raw.replace(/^```json\n?/, "").replace(/^```\n?/, "").replace(/```$/, "").trim();
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(jsonText);
+    parsed = JSON.parse(cleaned);
   } catch {
-    // Useful debug when model returned almost-json
-    throw new Error(`LLM extract returned non-JSON text: ${jsonText.slice(0, 300)}`);
+    throw new Error(`LLM extract returned non-JSON text: ${cleaned.slice(0, 300)}`);
   }
 
   const validated = ExtractResponseSchema.safeParse(parsed);

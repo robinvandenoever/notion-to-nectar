@@ -144,7 +144,18 @@ export async function deleteInspection(id: string): Promise<void> {
 // -------------------
 // Transcribe + Extract
 // -------------------
-export async function transcribeAudio(file: File): Promise<string> {
+export type TranscriptUtterance = {
+  start: number;
+  end: number;
+  transcript: string;
+};
+
+export type TranscribeResult = {
+  transcriptText: string;
+  utterances: TranscriptUtterance[];
+};
+
+export async function transcribeAudio(file: File): Promise<TranscribeResult> {
   const form = new FormData();
   form.append("file", file, file.name);
 
@@ -153,7 +164,10 @@ export async function transcribeAudio(file: File): Promise<string> {
     body: form,
   });
 
-  return String(data?.transcriptText ?? "");
+  return {
+    transcriptText: String(data?.transcriptText ?? ""),
+    utterances: Array.isArray(data?.utterances) ? data.utterances : [],
+  };
 }
 
 export async function extractFromTranscript(transcriptText: string): Promise<any> {
