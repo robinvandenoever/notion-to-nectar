@@ -417,6 +417,13 @@ function extractWithRegex(transcriptText: string) {
   };
 }
 
+class ExtractValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExtractValidationError";
+  }
+}
+
 /**
  * LLM extraction: transcript -> strict JSON -> validate -> return
  */
@@ -481,36 +488,71 @@ Questions:
 - If queen/EOQ not mentioned, ask: "Did you see the queen (EOQ) or evidence of a laying queen (fresh eggs)?"
 `.trim();
 
-  const completion = await anthropic.messages.create({
-    model: process.env.EXTRACT_MODEL ?? "claude-sonnet-4-6",
+  const extractModel = process.env.EXTRACT_MODEL ?? "claude-sonnet-4-6";
+  const extractMessages: { role: "user" | "assistant"; content: string }[] = [
+    { role: "user", content: userContent },
+  ];
+
+  function parseAndValidate(raw: string) {
+    const cleaned = raw.replace(/^```json\n?/, "").replace(/^```\n?/, "").replace(/```$/, "").trim();
+    let obj: unknown;
+    try {
+      obj = JSON.parse(cleaned);
+    } catch {
+      return { ok: false as const, error: `Non-JSON response: ${cleaned.slice(0, 300)}` };
+    }
+    const result = ExtractResponseSchema.safeParse(obj);
+    if (!result.success) {
+      return { ok: false as const, error: result.error.message };
+    }
+    return { ok: true as const, data: result.data };
+  }
+
+  const attempt1 = await anthropic.messages.create({
+    model: extractModel,
     max_tokens: 2048,
     temperature: 0,
     system,
-    messages: [
-      {
-        role: "user",
-        content: userContent,
-      },
-    ],
+    messages: extractMessages,
   });
 
-  const raw =
-    completion.content
+  const raw1 =
+    attempt1.content
       .filter((b) => b.type === "text")
       .map((b) => (b as any).text as string)
       .join("") || "{}";
-  const cleaned = raw.replace(/^```json\n?/, "").replace(/^```\n?/, "").replace(/```$/, "").trim();
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    throw new Error(`LLM extract returned non-JSON text: ${cleaned.slice(0, 300)}`);
-  }
+  let validated = parseAndValidate(raw1);
 
-  const validated = ExtractResponseSchema.safeParse(parsed);
-  if (!validated.success) {
-    throw new Error(`LLM JSON failed validation: ${validated.error.message}`);
+  if (!validated.ok) {
+    console.warn("Extract attempt 1 failed validation:", validated.error);
+
+    const attempt2 = await anthropic.messages.create({
+      model: extractModel,
+      max_tokens: 2048,
+      temperature: 0,
+      system,
+      messages: [
+        ...extractMessages,
+        { role: "assistant", content: raw1 },
+        {
+          role: "user",
+          content: `Your previous response failed schema validation: ${validated.error}\n\nPlease correct and return only the fixed JSON.`,
+        },
+      ],
+    });
+
+    const raw2 =
+      attempt2.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as any).text as string)
+        .join("") || "{}";
+
+    validated = parseAndValidate(raw2);
+
+    if (!validated.ok) {
+      throw new ExtractValidationError(`Extract validation failed after retry: ${validated.error}`);
+    }
   }
 
   return validated.data;
@@ -529,6 +571,10 @@ app.post("/extract", async (req, res) => {
     console.log("LLM extract OK: frames =", result.frames.length);
     return res.json(result);
   } catch (err) {
+    if (err instanceof ExtractValidationError) {
+      console.error("Extract validation exhausted after retry:", err.message);
+      return res.status(500).json({ error: "extract_validation_failed", details: err.message });
+    }
     console.warn("LLM extract failed, falling back to regex:", err);
     const fallback = extractWithRegex(transcriptText);
     return res.json(fallback);
