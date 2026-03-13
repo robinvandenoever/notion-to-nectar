@@ -482,7 +482,7 @@ Questions:
 `.trim();
 
   const completion = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: process.env.EXTRACT_MODEL ?? "claude-sonnet-4-6",
     max_tokens: 2048,
     temperature: 0,
     system,
