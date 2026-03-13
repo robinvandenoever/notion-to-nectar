@@ -91,8 +91,8 @@ const InspectHive = () => {
       }
       if (!transcriptText?.trim()) throw new Error("Transcription returned empty text.");
 
-      // 2) Extract
-      const extract = await extractFromTranscript(transcriptText);
+      // 2) Extract (pass utterances and frame count so API can chunk by frame)
+      const extract = await extractFromTranscript(transcriptText, utterances, hive.frameCount);
       if (import.meta.env.DEV) {
         console.log(
           "[inspect] extract.frames:",

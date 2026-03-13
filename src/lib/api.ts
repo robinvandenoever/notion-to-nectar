@@ -205,11 +205,19 @@ export async function scoreBenchmark(
   return (data?.score as BenchmarkScore | null) ?? null;
 }
 
-export async function extractFromTranscript(transcriptText: string): Promise<any> {
+export async function extractFromTranscript(
+  transcriptText: string,
+  utterances?: TranscriptUtterance[],
+  frameCount?: number
+): Promise<any> {
   const data = await request("/extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transcriptText }),
+    body: JSON.stringify({
+      transcriptText,
+      ...(utterances ? { utterances } : {}),
+      ...(frameCount !== undefined ? { frameCount } : {}),
+    }),
   });
   return data;
 }

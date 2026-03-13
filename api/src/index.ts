@@ -208,10 +208,87 @@ const ExtractResponseSchema = z.object({
   questions: z.array(z.string()).default([]),
 });
 
+const UtteranceSchema = z.object({
+  start: z.number(),
+  end: z.number(),
+  transcript: z.string(),
+});
+
 const ExtractBodySchema = z.object({
   transcriptText: z.string().min(1),
   frameCount: z.number().int().min(1).optional(),
+  utterances: z.array(UtteranceSchema).optional(),
 });
+
+type Utterance = { start: number; end: number; transcript: string };
+type ChunkResult = { intro: string[]; frames: Map<number, string[]>; outro: string[] };
+
+function chunkUtterancesByFrame(utterances: Utterance[]): ChunkResult {
+  const intro: string[] = [];
+  const outro: string[] = [];
+  const frames = new Map<number, string[]>();
+  let currentFrame: number | null = null;
+
+  // Find index of the last utterance that contains any frame mention
+  let lastFrameIdx = -1;
+  for (let i = utterances.length - 1; i >= 0; i--) {
+    if (/\bframe(?:\s+number)?\s+(\d+)\b/i.test(utterances[i].transcript)) {
+      lastFrameIdx = i;
+      break;
+    }
+  }
+
+  for (let i = 0; i < utterances.length; i++) {
+    const u = utterances[i];
+    const allMatches = [...u.transcript.matchAll(/\bframe(?:\s+number)?\s+(\d+)\b/gi)];
+
+    if (allMatches.length > 0) {
+      // Assign utterance to every frame mentioned (e.g. "Frames 7 and 8 are honey")
+      const mentioned = new Set(allMatches.map((m) => parseInt(m[1], 10)));
+      for (const frameNum of mentioned) {
+        const existing = frames.get(frameNum) ?? [];
+        existing.push(u.transcript);
+        frames.set(frameNum, existing);
+      }
+      // Subsequent utterances without a frame mention continue under the last one
+      currentFrame = parseInt(allMatches[allMatches.length - 1][1], 10);
+    } else if (currentFrame === null) {
+      intro.push(u.transcript);
+    } else if (i > lastFrameIdx) {
+      // After the last frame mention — global closing remarks, not frame-local facts
+      outro.push(u.transcript);
+    } else {
+      const existing = frames.get(currentFrame) ?? [];
+      existing.push(u.transcript);
+      frames.set(currentFrame, existing);
+    }
+  }
+
+  return { intro, frames, outro };
+}
+
+function formatChunkedInput(result: ChunkResult, frameCount?: number): string {
+  const parts: string[] = [];
+
+  if (frameCount !== undefined) {
+    parts.push(`Frame count (if known): ${frameCount}`);
+  }
+
+  if (result.intro.length > 0) {
+    parts.push(`General notes:\n${result.intro.map((t) => `"${t}"`).join("\n")}`);
+  }
+
+  const entries = Array.from(result.frames.entries()).sort(([a], [b]) => a - b);
+  for (const [frameNum, texts] of entries) {
+    parts.push(`Frame ${frameNum}:\n${texts.map((t) => `"${t}"`).join("\n")}`);
+  }
+
+  if (result.outro.length > 0) {
+    parts.push(`Closing notes:\n${result.outro.map((t) => `"${t}"`).join("\n")}`);
+  }
+
+  return parts.join("\n\n");
+}
 
 /**
  * Regex fallback (kept so the app still works if LLM fails/quota/etc.)
@@ -343,10 +420,23 @@ function extractWithRegex(transcriptText: string) {
 /**
  * LLM extraction: transcript -> strict JSON -> validate -> return
  */
-async function extractWithLLM(transcriptText: string, frameCount?: number) {
+async function extractWithLLM(transcriptText: string, frameCount?: number, utterances?: Utterance[]) {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  // Build structured input when utterance chunks cover ≥2 frames
+  let userContent: string;
+  if (utterances && utterances.length > 0) {
+    const chunked = chunkUtterancesByFrame(utterances);
+    if (chunked.frames.size >= 2) {
+      userContent = formatChunkedInput(chunked, frameCount);
+    } else {
+      userContent = `Frame count (if known): ${frameCount ?? "unknown"}\n\nTranscript:\n${transcriptText}`;
+    }
+  } else {
+    userContent = `Frame count (if known): ${frameCount ?? "unknown"}\n\nTranscript:\n${transcriptText}`;
+  }
 
   const system = `
 You must respond with only raw JSON. Do not use markdown fences, do not include any explanation, just the raw JSON object.
@@ -399,7 +489,7 @@ Questions:
     messages: [
       {
         role: "user",
-        content: `Frame count (if known): ${frameCount ?? "unknown"}\n\nTranscript:\n${transcriptText}`,
+        content: userContent,
       },
     ],
   });
@@ -432,10 +522,10 @@ app.post("/extract", async (req, res) => {
     return res.status(400).json({ error: "invalid_input", details: parsed.error.flatten() });
   }
 
-  const { transcriptText, frameCount } = parsed.data;
+  const { transcriptText, frameCount, utterances } = parsed.data;
 
   try {
-    const result = await extractWithLLM(transcriptText, frameCount);
+    const result = await extractWithLLM(transcriptText, frameCount, utterances);
     console.log("LLM extract OK: frames =", result.frames.length);
     return res.json(result);
   } catch (err) {
