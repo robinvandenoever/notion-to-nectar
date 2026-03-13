@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { FrameDataTable, type FrameReport, type NormalizedFrameRow, normalizeFrames } from "@/components/FrameDataTable";
-import { getInspection, deleteInspection, type Inspection } from "@/lib/api";
+import { getInspection, deleteInspection, getHives, scoreBenchmark, type Inspection, type BenchmarkScore } from "@/lib/api";
+import { useAppStore } from "@/lib/store";
 
 type ExtractResponse = {
   frames?: FrameReport[];
@@ -38,11 +39,13 @@ function sumPct(frames: NormalizedFrameRow[], key: "honey_pct" | "brood_pct" | "
 export default function InspectionReport() {
   const navigate = useNavigate();
   const { inspectionId } = useParams();
+  const { hives, setHives } = useAppStore();
 
   const [loading, setLoading] = useState(true);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [benchmarkScore, setBenchmarkScore] = useState<BenchmarkScore | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,10 +61,35 @@ export default function InspectionReport() {
       setError(null);
 
       try {
-        const insp = await getInspection(inspectionId);
+        // Fetch inspection + hives in parallel (hives needed for hive name lookup)
+        const [insp, hiveList] = await Promise.all([
+          getInspection(inspectionId),
+          hives.length === 0 ? getHives() : Promise.resolve(null),
+        ]);
         if (cancelled) return;
 
         setInspection(insp);
+
+        if (hiveList) {
+          setHives(
+            hiveList.map((r) => ({
+              id: r.id,
+              name: r.name,
+              apiary: r.apiary_name ?? "Unknown",
+              frameCount: r.frame_count ?? 10,
+              status: "new" as const,
+            }))
+          );
+        }
+
+        // Score if this is a benchmark hive (resolved after hives are available)
+        const resolvedHives = hiveList ?? hives;
+        const hive = resolvedHives.find((h) => h.id === insp.hiveId);
+        if (hive) {
+          const frames = (insp.extract as any)?.frames ?? [];
+          const score = await scoreBenchmark(frames, hive.name);
+          if (!cancelled) setBenchmarkScore(score);
+        }
       } catch (e: any) {
         if (cancelled) return;
         setError(e?.message ?? "Failed to load inspection.");
@@ -180,6 +208,25 @@ export default function InspectionReport() {
           </Card>
         </div>
 
+        {benchmarkScore && (
+          <Card className="p-4 shadow-card">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif font-semibold text-foreground">Benchmark accuracy</h3>
+              <span className="text-2xl font-serif font-bold text-foreground">
+                {benchmarkScore.overall_pct}%
+              </span>
+            </div>
+            {benchmarkScore.frames_extracted !== benchmarkScore.frames_expected && (
+              <p className="text-xs text-amber-500 mt-1">
+                Frame count mismatch: extracted {benchmarkScore.frames_extracted}, expected {benchmarkScore.frames_expected}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Green = exact · Orange = within 5% · Red = wrong
+            </p>
+          </Card>
+        )}
+
         {extract.questions?.length ? (
           <Card className="p-4 shadow-card">
             <h3 className="font-serif font-semibold text-foreground mb-2">Follow-ups</h3>
@@ -199,7 +246,7 @@ export default function InspectionReport() {
             </p>
           )}
           <h3 className="font-serif text-lg font-semibold text-foreground mb-3">Frame-by-frame</h3>
-          <FrameDataTable frames={rawFrames} />
+          <FrameDataTable frames={rawFrames} scores={benchmarkScore?.frames} />
         </div>
 
         <Card className="p-4 shadow-card">

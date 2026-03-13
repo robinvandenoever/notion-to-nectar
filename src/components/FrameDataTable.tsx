@@ -1,6 +1,7 @@
 import React from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import type { BenchmarkScore, FieldScore } from "@/lib/api";
 
 // A single “combined” frame row shape the UI knows how to render.
 // Accepts: (1) flat snake_case { frame_number, honey_pct, ... }, (2) flat camelCase,
@@ -142,6 +143,17 @@ function bool(v: any): boolean {
   return v === true;
 }
 
+const SCORE_CLASS: Record<FieldScore, string> = {
+  exact: "text-green-600",
+  close: "text-amber-500",
+  wrong: "text-red-500",
+  no_truth: "",
+};
+
+function scoreClass(score: FieldScore | undefined): string {
+  return score ? (SCORE_CLASS[score] ?? "") : "";
+}
+
 function Bar({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, value));
   return (
@@ -151,8 +163,17 @@ function Bar({ value }: { value: number }) {
   );
 }
 
-export function FrameDataTable({ frames }: { frames: FrameReport[] }) {
+export function FrameDataTable({
+  frames,
+  scores,
+}: {
+  frames: FrameReport[];
+  scores?: BenchmarkScore["frames"];
+}) {
   const rows = normalizeFrames(frames ?? []);
+  const scoreByFrame = scores
+    ? new Map(scores.map((s) => [s.frame_number, s.fields]))
+    : null;
 
   if (!rows.length) {
     return (
@@ -183,52 +204,63 @@ export function FrameDataTable({ frames }: { frames: FrameReport[] }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.frame_number} className="border-b last:border-b-0">
-                <td className="py-3 pr-2 font-medium">{r.frame_number}</td>
+            {rows.map((r) => {
+              const f = scoreByFrame?.get(r.frame_number);
+              return (
+                <tr key={r.frame_number} className="border-b last:border-b-0">
+                  <td className="py-3 pr-2 font-medium">{r.frame_number}</td>
 
-                <td className="py-3 pr-2 w-[90px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-8 text-xs text-muted-foreground shrink-0">{r.honey_pct}%</span>
-                    <Bar value={r.honey_pct} />
-                  </div>
-                </td>
+                  <td className="py-3 pr-2 w-[90px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-8 text-xs shrink-0 ${f ? scoreClass(f.honey_pct) : "text-muted-foreground"}`}>{r.honey_pct}%</span>
+                      <Bar value={r.honey_pct} />
+                    </div>
+                  </td>
 
-                <td className="py-3 pr-2 w-[90px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-8 text-xs text-muted-foreground shrink-0">{r.brood_pct}%</span>
-                    <Bar value={r.brood_pct} />
-                  </div>
-                </td>
+                  <td className="py-3 pr-2 w-[90px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-8 text-xs shrink-0 ${f ? scoreClass(f.brood_pct) : "text-muted-foreground"}`}>{r.brood_pct}%</span>
+                      <Bar value={r.brood_pct} />
+                    </div>
+                  </td>
 
-                <td className="py-3 pr-2 w-[90px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-8 text-xs text-muted-foreground shrink-0">{r.pollen_pct}%</span>
-                    <Bar value={r.pollen_pct} />
-                  </div>
-                </td>
+                  <td className="py-3 pr-2 w-[90px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-8 text-xs shrink-0 ${f ? scoreClass(f.pollen_pct) : "text-muted-foreground"}`}>{r.pollen_pct}%</span>
+                      <Bar value={r.pollen_pct} />
+                    </div>
+                  </td>
 
-                <td className="py-3 pr-2 w-[90px]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-8 text-xs text-muted-foreground shrink-0">{r.empty_pct}%</span>
-                    <Bar value={r.empty_pct} />
-                  </div>
-                </td>
+                  <td className="py-3 pr-2 w-[90px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-8 text-xs text-muted-foreground shrink-0">{r.empty_pct}%</span>
+                      <Bar value={r.empty_pct} />
+                    </div>
+                  </td>
 
-                <td className="py-3 pr-2">
-                  {r.eggs ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="py-3 pr-2">
-                  {r.larvae ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="py-3 pr-2">
-                  {r.drone ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="py-3">
-                  {r.queen_cells ? <Badge variant="secondary">✓</Badge> : <span className="text-muted-foreground">—</span>}
-                </td>
-              </tr>
-            ))}
+                  <td className="py-3 pr-2">
+                    {r.eggs
+                      ? <Badge variant="secondary" className={scoreClass(f?.eggs)}>✓</Badge>
+                      : <span className={f ? scoreClass(f.eggs) : "text-muted-foreground"}>—</span>}
+                  </td>
+                  <td className="py-3 pr-2">
+                    {r.larvae
+                      ? <Badge variant="secondary" className={scoreClass(f?.larvae)}>✓</Badge>
+                      : <span className={f ? scoreClass(f.larvae) : "text-muted-foreground"}>—</span>}
+                  </td>
+                  <td className="py-3 pr-2">
+                    {r.drone
+                      ? <Badge variant="secondary" className={scoreClass(f?.drone)}>✓</Badge>
+                      : <span className={f ? scoreClass(f.drone) : "text-muted-foreground"}>—</span>}
+                  </td>
+                  <td className="py-3">
+                    {r.queen_cells
+                      ? <Badge variant="secondary" className={scoreClass(f?.queen_cells)}>✓</Badge>
+                      : <span className={f ? scoreClass(f.queen_cells) : "text-muted-foreground"}>—</span>}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

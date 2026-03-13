@@ -170,6 +170,41 @@ export async function transcribeAudio(file: File): Promise<TranscribeResult> {
   };
 }
 
+// -------------------
+// Benchmark scoring
+// -------------------
+export type FieldScore = "exact" | "close" | "wrong" | "no_truth";
+
+export type BenchmarkScore = {
+  overall_pct: number;
+  frames_expected: number;
+  frames_extracted: number;
+  frames: Array<{
+    frame_number: number;
+    fields: {
+      honey_pct: FieldScore;
+      brood_pct: FieldScore;
+      pollen_pct: FieldScore;
+      eggs: FieldScore;
+      larvae: FieldScore;
+      drone: FieldScore;
+      queen_cells: FieldScore;
+    };
+  }>;
+};
+
+export async function scoreBenchmark(
+  frames: any[],
+  hiveName: string
+): Promise<BenchmarkScore | null> {
+  const data = await request("/score", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ frames, hiveName }),
+  });
+  return (data?.score as BenchmarkScore | null) ?? null;
+}
+
 export async function extractFromTranscript(transcriptText: string): Promise<any> {
   const data = await request("/extract", {
     method: "POST",
