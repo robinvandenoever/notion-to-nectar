@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
-import { getHives, getInspectionsByHive, type Hive, type InspectionListItem } from "@/lib/api";
+import { getHives, getInspectionsByHive, scoreBenchmark, type Hive, type InspectionListItem } from "@/lib/api";
 import { normalizeFrames, type FrameReport } from "@/components/FrameDataTable";
 
 function toNum(v: unknown): number {
@@ -63,6 +63,7 @@ const HiveDetail = () => {
   const [loading, setLoading] = useState(true);
   const [hives, setHives] = useState<Hive[]>([]);
   const [inspections, setInspections] = useState<InspectionListItem[]>([]);
+  const [accuracyScores, setAccuracyScores] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +112,27 @@ const HiveDetail = () => {
       cancelled = true;
     };
   }, [hiveId, toast]);
+
+  // Score benchmark inspections once hive + inspections are both loaded
+  useEffect(() => {
+    if (!hiveId || inspections.length === 0) return;
+    const hiveName = hives.find((h) => h.id === hiveId)?.name;
+    if (!hiveName) return;
+
+    Promise.all(
+      inspections.map(async (insp) => {
+        const frames = (insp.extract as any)?.frames ?? [];
+        const score = await scoreBenchmark(frames, hiveName);
+        return score ? ([insp.id, score.overall_pct] as const) : null;
+      })
+    ).then((results) => {
+      const map = new Map<string, number>();
+      for (const r of results) {
+        if (r) map.set(r[0], r[1]);
+      }
+      if (map.size > 0) setAccuracyScores(map);
+    });
+  }, [hiveId, hives, inspections]);
 
   const hive = useMemo(() => {
     if (!hiveId) return undefined;
@@ -212,13 +234,26 @@ const HiveDetail = () => {
                           {inspection.recordedAtLocal ? "Recorded date" : "Created date"}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => navigate(`/inspection/${inspection.id}`)}
-                      >
-                        View report
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {accuracyScores.has(inspection.id) && (
+                          <span className={`text-xs font-medium ${
+                            (accuracyScores.get(inspection.id) ?? 0) >= 80
+                              ? "text-green-600"
+                              : (accuracyScores.get(inspection.id) ?? 0) >= 50
+                              ? "text-amber-500"
+                              : "text-red-500"
+                          }`}>
+                            {accuracyScores.get(inspection.id)}%
+                          </span>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigate(`/inspection/${inspection.id}`)}
+                        >
+                          View report
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Bottom row: 4 stats spread across the full card width */}
