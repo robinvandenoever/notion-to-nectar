@@ -237,9 +237,9 @@ const HiveDetail = () => {
                       <div className="flex items-center gap-2">
                         {accuracyScores.has(inspection.id) && (
                           <span className={`text-xs font-medium ${
-                            (accuracyScores.get(inspection.id) ?? 0) >= 80
+                            (accuracyScores.get(inspection.id) ?? 0) > 98
                               ? "text-green-600"
-                              : (accuracyScores.get(inspection.id) ?? 0) >= 50
+                              : (accuracyScores.get(inspection.id) ?? 0) >= 85
                               ? "text-amber-500"
                               : "text-red-500"
                           }`}>
