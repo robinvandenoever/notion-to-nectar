@@ -97,7 +97,7 @@ function collapseWhitespace(text: string): string {
 
 const transforms: Transform[] = [
   stripFillerWords,
-  normalizePercent,
+  // normalizePercent,
   normalizeFrameReferences,
   normalizeEOQVariants,
   correctDomainVocabulary,
