@@ -1,3 +1,4 @@
+// NOTE: keep in sync with project-bee/services/api/src/cleanTranscript.ts
 type Transform = (text: string) => string;
 
 // ---------------------------------------------------------------------------
@@ -41,12 +42,21 @@ const NUMBER_WORDS: Record<string, number> = {
 const NUMBER_WORD_PATTERN = Object.keys(NUMBER_WORDS).join("|");
 
 function normalizeFrameReferences(text: string): string {
-  // "frame two" | "frame number two" → "Frame 2"
+  // Pass 1: "frames seven and eight" → "Frame 7 and Frame 8"
+  // Must run before pass 2 so the compound pattern is consumed first.
+  text = text.replace(
+    new RegExp(
+      `\\bframes?\\s+(?:number\\s+)?(${NUMBER_WORD_PATTERN})\\s+and\\s+(${NUMBER_WORD_PATTERN})\\b`,
+      "gi"
+    ),
+    (_match, a, b) => `Frame ${NUMBER_WORDS[a.toLowerCase()]} and Frame ${NUMBER_WORDS[b.toLowerCase()]}`
+  );
+  // Pass 2: "frame two" | "frame number two" → "Frame 2"
   text = text.replace(
     new RegExp(`\\bframes?\\s+(?:number\\s+)?(${NUMBER_WORD_PATTERN})\\b`, "gi"),
     (_match, word) => `Frame ${NUMBER_WORDS[word.toLowerCase()]}`
   );
-  // "second frame" → "Frame 2"
+  // Pass 3: "second frame" → "Frame 2"
   text = text.replace(
     new RegExp(`\\b(${NUMBER_WORD_PATTERN})\\s+frames?\\b`, "gi"),
     (_match, word) => `Frame ${NUMBER_WORDS[word.toLowerCase()]}`
