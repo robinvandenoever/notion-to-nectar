@@ -8,6 +8,7 @@ import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient as createDeepgram } from "@deepgram/sdk";
 import { getPool } from "./db.js";
+import { cleanTranscript, cleanUtterances } from "./cleanTranscript.js";
 
 const app = express();
 const pool = getPool();
@@ -432,17 +433,20 @@ async function extractWithLLM(transcriptText: string, frameCount?: number, utter
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  const cleanedText = cleanTranscript(transcriptText);
+  const cleanedUtterances = utterances ? cleanUtterances(utterances) : utterances;
+
   // Build structured input when utterance chunks cover ≥2 frames
   let userContent: string;
-  if (utterances && utterances.length > 0) {
-    const chunked = chunkUtterancesByFrame(utterances);
+  if (cleanedUtterances && cleanedUtterances.length > 0) {
+    const chunked = chunkUtterancesByFrame(cleanedUtterances);
     if (chunked.frames.size >= 2) {
       userContent = formatChunkedInput(chunked, frameCount);
     } else {
-      userContent = `Frame count (if known): ${frameCount ?? "unknown"}\n\nTranscript:\n${transcriptText}`;
+      userContent = `Frame count (if known): ${frameCount ?? "unknown"}\n\nTranscript:\n${cleanedText}`;
     }
   } else {
-    userContent = `Frame count (if known): ${frameCount ?? "unknown"}\n\nTranscript:\n${transcriptText}`;
+    userContent = `Frame count (if known): ${frameCount ?? "unknown"}\n\nTranscript:\n${cleanedText}`;
   }
 
   const system = `
