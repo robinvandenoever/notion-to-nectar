@@ -28,6 +28,9 @@ const VOCAB_MAP: Record<string, string> = {
   unkept: "uncapped",
   axe: "eggs",
   cone: "comb",     // ⚠️ common word ("pine cone", "traffic cone") — monitor for false matches
+  fallen: "pollen",
+  pollard: "pollen",
+  lari: "larvae",
 };
 
 function correctDomainVocabulary(text: string): string {
