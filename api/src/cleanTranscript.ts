@@ -22,6 +22,12 @@ function normalizeEOQVariants(text: string): string {
 // Do not guess — expand after benchmark runs confirm specific mishearings.
 const VOCAB_MAP: Record<string, string> = {
   brute: "brood",
+  roots: "brood",
+  root: "brood",    // ⚠️ common word ("root cause", "root vegetable") — monitor for false matches
+  kept: "capped",   // ⚠️ very common word ("I kept notes", "well-kept") — high false-match risk
+  unkept: "uncapped",
+  axe: "eggs",
+  cone: "comb",     // ⚠️ common word ("pine cone", "traffic cone") — monitor for false matches
 };
 
 function correctDomainVocabulary(text: string): string {
